@@ -154,6 +154,12 @@ async def shutdown():
 async def health_check():
     return {"status": "ok"}
 
+@app.head("/")
+@app.get("/")
+async def root():
+    """Корневой маршрут, чтобы скрипт не перезагружался из-за 404 ошибки"""
+    return {"status": "ok", "message": "Wheel Try-On API is running"}
+
 @app.post("/jobs", response_model=JobCreateResponse)
 async def create_job(request: JobCreateRequest):
     async with db_pool.acquire() as connection:

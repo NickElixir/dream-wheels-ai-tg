@@ -159,11 +159,7 @@ def main():
 
     # Запуск поллинга Telegram серверов
     # Запуск поллинга с агрессивным сбросом фантомных соединений и жесткими тайм-аутами
-    application.run_polling(
-        drop_pending_updates=True, 
-        pool_timeout=20.0, 
-        read_timeout=20.0
-    )
+    application.run_polling()
 
 if __name__ == "__main__":
     main()

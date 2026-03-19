@@ -157,6 +157,7 @@ async def process_jobs_loop():
                         "UPDATE jobs SET status = 'failed', error_message = $1 WHERE id = $2::uuid", 
                         str(e), job_id
                     )
+            await asyncio.sleep(5)
 
 # ==========================================
 # 🔄 ЖИЗНЕННЫЙ ЦИКЛ (Startup / Shutdown)

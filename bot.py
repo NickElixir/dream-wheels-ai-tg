@@ -61,11 +61,13 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # Шаг 4: Отправляем запрос POST /jobs к FastAPI [cite: 4]
     job_id = None
+    car_file = await context.bot.get_file(car_file_id)
+    wheel_file = await context.bot.get_file(wheel_file_id)
     async with aiohttp.ClientSession() as session:
         payload = {
             "telegram_user_id": user_id,
-            "car_file_id": car_file_id,
-            "wheel_file_id": wheel_file_id
+            "car_url": car_file.file_path,  # Передаем готовую ссылку
+            "wheel_url": wheel_file.file_path # Передаем готовую ссылку
         }
         try:
             async with session.post(f"{API_BASE_URL}/jobs", json=payload) as resp:

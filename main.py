@@ -73,7 +73,7 @@ async def process_jobs_loop():
         try:
             # BLPOP блокирует выполнение до появления задачи в списке 
             # Возвращает кортеж: (имя_очереди, данные)
-            result = await redis_client.blpop("image_processing_queue", timeout=0)
+            result = await redis_client.blpop("image_processing_queue", timeout=5)
             if not result:
                 continue
                 

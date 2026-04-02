@@ -52,7 +52,6 @@ async def get_base64_from_url(url: str) -> str:
                 raise Exception(f"Ошибка скачивания файла: HTTP {resp.status}")
                 
 async def process_jobs_loop():
-    async def process_jobs_loop():
     logger.info("🟢 ВОРКЕР ЗАПУЩЕН И ЖДЕТ ЗАДАЧУ...")
     while True:
         job_id = None

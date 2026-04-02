@@ -52,26 +52,36 @@ async def get_base64_from_url(url: str) -> str:
                 raise Exception(f"Ошибка скачивания файла: HTTP {resp.status}")
                 
 async def process_jobs_loop():
-    logger.info("🟢 ВОРКЕР ЗАПУЩЕН")
+    async def process_jobs_loop():
+    logger.info("🟢 ВОРКЕР ЗАПУЩЕН И ЖДЕТ ЗАДАЧУ...")
     while True:
         job_id = None
         try:
-            # Читаем из очереди (используем ваш рабочий BLPOP или LPOP)
-            result = await redis_client.blpop("job_queue", timeout=9)
+            # 1. Читаем из очереди
+            result = await redis_client.blpop("job_queue", timeout=10)
             if not result:
                 continue
                 
-            _, job_data_str = result
-            job_data = json.loads(job_data_str)
-            job_id = job_data["job_id"]
-            logger.info(f"🔥 Воркер взял задачу: {job_id}")
+            logger.info("📦 Сигнал из Redis получен!")
+            
+            # 2. Безопасный парсинг данных
+            try:
+                queue_name, job_data_str = result
+                job_data = json.loads(job_data_str)
+                job_id = job_data["job_id"]
+                logger.info(f"🔥 Воркер извлек задачу: {job_id}")
+            except Exception as parse_err:
+                logger.error(f"❌ Ошибка расшифровки JSON из Redis: {parse_err}. Сырые данные: {result}")
+                continue
 
-            # 1. Обновляем статус на processing
+            # 3. Обновление статуса в БД
+            logger.info(f"🔄 Стучимся в базу данных для смены статуса {job_id}...")
             async with db_pool.acquire() as connection:
                 await connection.execute(
                     "UPDATE jobs SET status = 'processing' WHERE id = $1::uuid", 
                     job_id
                 )
+            logger.info("✅ База данных ответила: статус изменен на processing!")
 
             # 2. Скачиваем картинки в Base64 (используем функцию, которую мы добавили ранее)
             logger.info(f"📥 [Задача {job_id}] Скачиваем картинки в Base64...")

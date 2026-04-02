@@ -102,7 +102,11 @@ async def poll_job_status(update: Update, status_msg, job_id: str):
 if __name__ == "__main__":
     logger.info("Запуск Telegram-бота...")
     # Чистый запуск без конфликтов
-    application = Application.builder().token(BOT_TOKEN).build()
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(MessageHandler(filters.PHOTO, handle_photo))
-    application.run_polling()
+    # Устанавливаем строгие таймауты, чтобы запросы не перекрывали друг друга
+    application = (
+        Application.builder()
+        .token(BOT_TOKEN)
+        .get_updates_read_timeout(42.0)
+        .get_updates_pool_timeout(50.0)
+        .build()
+    )

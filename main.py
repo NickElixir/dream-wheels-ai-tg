@@ -42,7 +42,7 @@ async def process_jobs_loop():
         try:
             # Паттерн BLPOP (блокирующее чтение из списка). 
             # Таймаут 5 сек нужен, чтобы цикл мог корректно завершиться при выключении сервера.
-            result = await redis_client.blpop("job_queue", timeout=5)
+            result = await redis_client.blpop("job_queue", timeout=9)
             if not result:
                 continue
                 

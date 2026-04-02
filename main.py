@@ -164,12 +164,10 @@ async def shutdown():
 # ==========================================
 # API ЭНДПОИНТЫ (MVP) [cite: 14, 15]
 # ==========================================
-@app.head("/")
-@app.get("/")
-@app.head("/health")
-@app.get("/health")
+@app.api_route("/", methods=["GET", "HEAD"])
+@app.api_route("/health", methods=["GET", "HEAD"])
 async def health_check():
-    """Uptime check for deployment health monitoring."""
+    """Единый и безопасный маршрут, исключающий раздвоение потоков"""
     return {"status": "ok"}
 
 @app.post("/jobs", response_model=JobCreateResponse)

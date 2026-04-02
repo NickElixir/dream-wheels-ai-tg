@@ -127,10 +127,12 @@ async def shutdown():
 # ==========================================
 # API ЭНДПОИНТЫ (MVP) [cite: 14, 15]
 # ==========================================
+@app.head("/")
 @app.get("/")
+@app.head("/health")
 @app.get("/health")
 async def health_check():
-    """Uptime check for deployment health monitoring[cite: 15]."""
+    """Uptime check for deployment health monitoring."""
     return {"status": "ok"}
 
 @app.post("/jobs", response_model=JobCreateResponse)

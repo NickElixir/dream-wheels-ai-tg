@@ -108,37 +108,44 @@ async def health_check():
 
 @app.post("/jobs", response_model=JobCreateResponse)
 async def create_job(request: JobCreateRequest):
-    """Create job: accepts user_id and image URLs, pushes to Redis queue[cite: 15]."""
+    logger.info(f"📥 Получен запрос на создание задачи. Авто: {request.car_url}, Диск: {request.wheel_url}")
     job_id = str(uuid.uuid4())
     
-    async with db_pool.acquire() as conn:
-        # Проверяем/создаем пользователя 
-        user_id = await conn.fetchval("SELECT id FROM users WHERE telegram_user_id = $1", request.telegram_user_id)
-        if not user_id:
+    try:
+        async with db_pool.acquire() as conn:
+            # 1. Ищем или создаем пользователя (Таблица users [cite: 8])
             user_id = await conn.fetchval(
-                "INSERT INTO users (telegram_user_id) VALUES ($1) RETURNING id", 
+                "SELECT id FROM users WHERE telegram_user_id = $1", 
                 request.telegram_user_id
             )
-        
-        # Создаем задачу в БД (статус queued) [cite: 13, 15]
-        await conn.execute(
-            """
-            INSERT INTO jobs (id, user_id, status, car_image_url, wheel_image_url) 
-            VALUES ($1::uuid, $2, 'queued', $3, $4)
-            """,
-            job_id, user_id, request.car_url, request.wheel_url
-        )
+            if not user_id:
+                user_id = await conn.fetchval(
+                    "INSERT INTO users (telegram_user_id) VALUES ($1) RETURNING id", 
+                    request.telegram_user_id
+                )
+            
+            # 2. Создаем задачу с явным указанием типов (Таблица jobs [cite: 10])
+            await conn.execute(
+                """
+                INSERT INTO jobs (id, user_id, status, car_image_url, wheel_image_url) 
+                VALUES ($1::uuid, $2, 'queued', $3, $4)
+                """,
+                job_id, user_id, request.car_url, request.wheel_url
+            )
+            logger.info(f"✅ Задача {job_id} успешно записана в БД со статусом queued")
 
-    # Пушим в Redis (RPUSH) [cite: 2, 15]
-    job_payload = {
+    except Exception as db_err:
+        logger.error(f"❌ ОШИБКА ЗАПИСИ В БД (INSERT): {db_err}")
+        raise HTTPException(status_code=500, detail="Database insert failed")
+
+    # Пушим в Redis
+    await redis_client.rpush("job_queue", json.dumps({
         "job_id": job_id,
         "telegram_user_id": request.telegram_user_id,
         "car_url": request.car_url
-    }
-    await redis_client.rpush("job_queue", json.dumps(job_payload))
-    
+    }))
     return JobCreateResponse(job_id=job_id, status="queued")
-
+    
 @app.get("/jobs/{job_id}", response_model=JobStatusResponse)
 async def get_job_status(job_id: str):
     """Poll job status. Returns status and output_image_url[cite: 15]."""

@@ -52,110 +52,67 @@ async def get_base64_from_url(url: str) -> str:
                 raise Exception(f"Ошибка скачивания файла: HTTP {resp.status}")
                 
 async def process_jobs_loop():
-    logger.info("🟢 ВОРКЕР ЗАПУЩЕН И ЖДЕТ ЗАДАЧУ...")
+    logger.info("🟢 ВОРКЕР ЗАПУЩЕН")
     while True:
         job_id = None
         try:
-            # 1. Читаем из очереди
+            # Читаем из Redis
             result = await redis_client.blpop("job_queue", timeout=10)
-            if not result:
-                continue
+            if not result: continue
                 
-            logger.info("📦 Сигнал из Redis получен!")
-            
-            # 2. Безопасный парсинг данных
-            try:
-                queue_name, job_data_str = result
-                job_data = json.loads(job_data_str)
-                job_id = job_data["job_id"]
-                logger.info(f"🔥 Воркер извлек задачу: {job_id}")
-            except Exception as parse_err:
-                logger.error(f"❌ Ошибка расшифровки JSON из Redis: {parse_err}. Сырые данные: {result}")
-                continue
+            job_data = json.loads(result[1])
+            job_id = job_data["job_id"]
+            logger.info(f"🔥 Взята задача: {job_id}")
 
-            # 3. Обновление статуса в БД
-            logger.info(f"🔄 Стучимся в базу данных для смены статуса {job_id}...")
-            async with db_pool.acquire() as connection:
-                await connection.execute(
-                    "UPDATE jobs SET status = 'processing' WHERE id = $1::uuid", 
-                    job_id
-                )
-            logger.info("✅ База данных ответила: статус изменен на processing!")
+            # 1. Смена статуса
+            async with db_pool.acquire() as conn:
+                await conn.execute("UPDATE jobs SET status = 'processing' WHERE id = $1::uuid", job_id)
 
-            # 2. Скачиваем картинки в Base64 (используем функцию, которую мы добавили ранее)
-            logger.info(f"📥 [Задача {job_id}] Скачиваем картинки в Base64...")
+            # 2. Подготовка Base64 (используем ранее написанную функцию fetch_image_as_base64)
             car_b64 = await fetch_image_as_base64(job_data["car_url"])
             wheel_b64 = await fetch_image_as_base64(job_data["wheel_url"])
 
-            # 3. Обращение к Reve API
-            logger.info(f"🚀 [Задача {job_id}] Отправляем запрос в Reve API...")
-            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=90)) as api_session:
-                headers = {
-                    "Authorization": f"Bearer {os.getenv('REVE_API_KEY', 'ВАШ_ТОКЕН')}",
-                    "Accept": "application/json",
-                    "Content-Type": "application/json"
-                }
-                
+            # 3. Запрос к Reve (Формат: Массив + Теги)
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=90)) as session:
                 payload = {
-                    "prompt": "Replace the wheels of the car in <img>0</img> with the wheel design provided in <img>1</img>. Maintain realistic perspective, lighting, shadows, and scale.",
+                    "prompt": "Professional car tuning: take the wheels from <img>1</img> and install them on the car in <img>0</img>. High quality, photorealistic.",
                     "reference_images": [car_b64, wheel_b64],
                     "aspect_ratio": "16:9",
                     "version": "latest"
                 }
+                headers = {
+                    "Authorization": f"Bearer {os.getenv('REVE_API_KEY')}",
+                    "Content-Type": "application/json",
+                    "Accept": "application/json"
+                }
                 
-                async with api_session.post("https://api.reve.com/v1/image/remix", json=payload, headers=headers) as reve_resp:
-                    response_text = await reve_resp.text()
-                    if reve_resp.status != 200:
-                        raise Exception(f"Reve API error (HTTP {reve_resp.status}): {response_text}")
+                async with session.post("https://api.reve.com/v1/image/remix", json=payload, headers=headers) as resp:
+                    res_json = await resp.json()
+                    if resp.status != 200: raise Exception(f"Reve Error: {res_json}")
                     
-                    import json
-                    result_data = json.loads(response_text)
+                    b64_output = res_json.get('image')
                     
-                    if result_data.get('content_violation'):
-                        raise Exception("Reve API: Нарушение контента")
-                        
-                    b64_result = result_data.get('image')
-                    if not b64_result:
-                        raise Exception("Reve API не вернул 'image'")
-                        
-                    # Сохраняем готовую картинку в папку static
-                    output_filename = f"result_{job_id}.jpg"
-                    output_path = os.path.join("static", output_filename)
-                    import base64
-                    with open(output_path, "wb") as f:
-                        f.write(base64.b64decode(b64_result))
-                        
-                    # Формируем URL результата
-                    output_url = f"https://dream-wheels-ai-tg.onrender.com/static/{output_filename}"
+                    # Сохраняем результат в static
+                    filename = f"res_{job_id}.jpg"
+                    path = os.path.join("static", filename)
+                    with open(path, "wb") as f:
+                        f.write(base64.b64decode(b64_output))
+                    
+                    output_url = f"https://dream-wheels-ai-tg.onrender.com/static/{filename}"
 
-            # 4. ОБНОВЛЯЕМ БАЗУ ДАННЫХ НА COMPLETED (То, что я забыл!)
-            async with db_pool.acquire() as connection:
-                # Атомарная транзакция для надежности
-                async with connection.transaction():
-                    await connection.execute(
-                        "UPDATE jobs SET status = 'completed', output_image_url = $1, completed_at = CURRENT_TIMESTAMP WHERE id = $2::uuid", 
-                        output_url, job_id
-                    )
-                    # Также обновляем счетчик задач пользователя, как требовал MVP
-                    await connection.execute(
-                        "UPDATE users SET job_count = job_count + 1 WHERE telegram_user_id = $1", 
-                        int(job_data["telegram_user_id"])
-                    )
-                    
-            logger.info(f"✅ Задача {job_id} успешно завершена и записана в БД!")
+            # 4. ФИНАЛЬНОЕ ОБНОВЛЕНИЕ БАЗЫ
+            async with db_pool.acquire() as conn:
+                await conn.execute(
+                    "UPDATE jobs SET status = 'completed', output_image_url = $1, completed_at = CURRENT_TIMESTAMP WHERE id = $2::uuid",
+                    output_url, job_id
+                )
+            logger.info(f"✅ Задача {job_id} завершена!")
 
         except Exception as e:
-            logger.error(f"❌ КРИТИЧЕСКАЯ ОШИБКА ВОРКЕРА: {e}")
-            # Пишем ошибку в БД, чтобы бот не ждал вечно
+            logger.error(f"❌ Ошибка воркера: {e}")
             if job_id:
-                try:
-                    async with db_pool.acquire() as connection:
-                        await connection.execute(
-                            "UPDATE jobs SET status = 'failed', error_message = $1 WHERE id = $2::uuid", 
-                            str(e), job_id
-                        )
-                except Exception as db_err:
-                    logger.error(f"Не удалось записать failed в БД: {db_err}")
+                async with db_pool.acquire() as conn:
+                    await conn.execute("UPDATE jobs SET status = 'failed', error_message = $1 WHERE id = $2::uuid", str(e), job_id)
             await asyncio.sleep(5)
 # ==========================================
 # ЖИЗНЕННЫЙ ЦИКЛ ПРИЛОЖЕНИЯ

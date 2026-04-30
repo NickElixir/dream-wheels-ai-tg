@@ -138,6 +138,10 @@ celerybeat.pid
 .env
 .envrc
 .venv
+
+# Claude Code local settings (personal permission rules)
+.claude/settings.local.json
+.claude/settings.json
 env/
 venv/
 ENV/

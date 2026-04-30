@@ -68,9 +68,9 @@ async def process_jobs_loop():
             async with db_pool.acquire() as conn:
                 await conn.execute("UPDATE jobs SET status = 'processing' WHERE id = $1::uuid", job_id)
 
-            # 2. Подготовка Base64 (используем ранее написанную функцию fetch_image_as_base64)
-            car_b64 = await fetch_image_as_base64(job_data["car_url"])
-            wheel_b64 = await fetch_image_as_base64(job_data["wheel_url"])
+            # 2. Подготовка Base64
+            car_b64 = await get_base64_from_url(job_data["car_url"])
+            wheel_b64 = await get_base64_from_url(job_data["wheel_url"])
 
             # 3. Запрос к Reve (Формат: Массив + Теги)
             async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=90)) as session:

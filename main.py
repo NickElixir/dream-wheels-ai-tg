@@ -120,7 +120,10 @@ async def process_jobs_loop():
 @app.on_event("startup")
 async def startup():
     global db_pool, redis_client, worker_task
-    db_pool = await asyncpg.create_pool(DATABASE_URL)
+    # statement_cache_size=0 is required when DATABASE_URL points to
+    # Supabase pooler (port 6543) running in transaction pool_mode —
+    # otherwise asyncpg's prepared statements collide between pool sessions.
+    db_pool = await asyncpg.create_pool(DATABASE_URL, statement_cache_size=0)
     redis_client = redis.from_url(REDIS_URL, decode_responses=True)
     worker_task = asyncio.create_task(process_jobs_loop())
 

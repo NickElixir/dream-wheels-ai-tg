@@ -13,6 +13,10 @@ REDIS_URL = os.getenv("REDIS_URL")
 logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Подавить INFO-логи httpx/httpcore — каждый запрос содержит BOT_TOKEN в URL
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
+
 redis_client = redis.from_url(REDIS_URL, decode_responses=True)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):

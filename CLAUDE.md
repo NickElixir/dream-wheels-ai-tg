@@ -1,90 +1,120 @@
-# Инструкции для Claude Code
+# CLAUDE.md
 
-Этот файл автоматически загружается в контекст Claude Code при работе в этом репозитории.
+Инструкции для Claude Code в этом репозитории. Читается автоматически при старте сессии.
 
-## Кто я
+## Code conventions (single source of truth)
 
-**Николай Луценко** — Python Backend Developer с 4+ годами production-опыта, параллельно — магистр Сколтеха (Engineering Systems / AI in Robotics).
+**Перед изменениями кода прочитай [CONTRIBUTING.md](CONTRIBUTING.md)** — там полный гайд по стилю, бранчингу, коммитам, логированию, безопасности. Дублировать не буду; основные пункты, актуальные при каждой генерации:
 
-Релевантный опыт:
-- **FastAPI + PostgreSQL + Redis** — стек один-в-один с этим проектом. Работал в НМИЦ Блохина над Medical Data Platform (микросервисы, Pydantic-валидация, JWT, RBAC, Repository pattern).
-- **E-commerce backend** 4 года (ООО «Дрим Холдинг») — Python + SQL + REST API, интеграции с маркетплейсами/CRM.
-- **Robotics & CV**: ROS/ROS2, OpenCV, ONNX, YOLO fine-tuning, edge deployment на Raspberry Pi.
-- **ML/DL**: Keras, PyTorch, TensorFlow (DeepLearning School МФТИ + проекты Сколтеха).
-- **DevOps базовый**: Docker, веб-безопасность, адаптивная вёрстка.
+### Logging — обязательно соблюдать
 
-## Что это значит для ответов
+```python
+# ❌ НЕ делать
+except Exception as e:
+    logger.error(f"Ошибка: {e}")
 
-### НЕ объяснять
-- Базовые концепции Python (async/await, type hints, классы, декораторы, контекстные менеджеры)
-- Стандартный backend-стек: REST, JWT, ORM, миграции, pooling, prepared statements
-- FastAPI/Pydantic/asyncpg — основы
-- ML-термины (модели, инференс, fine-tuning, квантизация) — рабочая лексика
-- Git/conventional commits/pre-commit — знакомо
-- Patterns (Repository, Factory, и т.д.) — рабочая лексика
-- Linux/Bash — базовый уровень есть
+# ✅ Делать
+except Exception as e:
+    logger.exception(f"Ошибка обработки job_id={job_id}: {e}")
+```
 
-### Можно сразу технически
-- "Asyncpg падает на pgBouncer transaction mode из-за prepared statements — нужен statement_cache_size=0"
-- "lifespan заменил on_event с FastAPI 0.93+"
-- "RLS на public.* блокирует доступ через PostgREST anon-ключ"
-- "Render Free spin-down 15 мин убивает long-poll бота"
+- `logger.exception` в catch-блоках (даёт stack trace)
+- Контекст в сообщениях: `job_id`, `user_id`, `telegram_user_id`
+- Эмодзи в начале: 🟢 startup, 🔥 in-progress, ✅ success, ❌ failure, 📥 incoming
+- Никогда не логировать секреты (BOT_TOKEN, пароли)
 
-### Стоит пояснить (если возникнет)
-- Специфика конкретных платформ: **Supabase pooler ports**, **Render rolling deploy quirks**, **Upstash REST vs RPESP**, **Telegram Bot API webhook vs polling trade-offs**
-- Новые фичи Python 3.12+ (если использую)
-- MCP-протокол (раз с ним только начали работать)
-- Эзотерика конкретных libs (например, `pg_hashids`, `pgvector` сетапы)
+### Code style
+
+- Python 3.12, type hints в публичных сигнатурах
+- Async везде где I/O
+- `from src.config import ...` (абсолютные импорты)
+- Минимум комментариев. Комментарии — про **WHY**, не **WHAT**
+- Pydantic для валидации на границах
+- Ruff форматирует и линтит — конфиг в [pyproject.toml](pyproject.toml)
+
+### Коммиты и ветки
+
+- Conventional commits: `feat:`, `fix:`, `chore:`, `refactor:`, `docs:`, `test:`
+- Ветви: `feature/* → dev → test → main`
+- **НЕ пушить в `main`** напрямую — только через PR
+- Атомарные коммиты, не смешивать рефакторинг с фиксами
+
+### Безопасность
+
+- Секреты только в `.env`, никогда в коде/коммитах/чате/логах
+- `.env.example` обновлять при новых переменных
+- Деструктивные действия (DROP, DELETE без WHERE, force push) — подтверждение
+
+## Профиль пользователя
+
+**Николай Луценко** — Python Backend Developer (4+ года прод-опыт), магистр Сколтеха (Engineering Systems / AI in Robotics).
+
+**Прод-опыт:**
+- НМИЦ Блохина (2025): FastAPI + PostgreSQL + Redis микросервисы, JWT, RBAC, Repository pattern
+- Дрим Холдинг (2021–2025): Python e-commerce backend, REST API, маркетплейсы
+- Robotics & CV: ROS2, OpenCV, ONNX, YOLO fine-tuning, edge на Raspberry Pi
+- ML/DL: Keras, PyTorch, TensorFlow (DeepLearning School МФТИ)
 
 ## Стиль ответов
 
-### Длина
-- **Default = 3-7 предложений**
-- На "да/нет" вопросы — **одно предложение**
-- Развёрнуто — только если явно прошу или это архитектурное решение с trade-offs
+### НЕ объяснять (использует профессионально)
 
-### Структура
-- Без аналогий из жизни
-- Без trailing summary в конце
+- Python: async/await, type hints, классы, декораторы, контекстные менеджеры
+- Backend: REST, JWT, ORM, миграции, connection pooling, prepared statements
+- FastAPI / Pydantic / asyncpg — основы
+- ML-термины: модель, инференс, fine-tuning, квантизация
+- Git, conventional commits, pre-commit
+- Patterns (Repository, Factory)
+- Linux / Bash базы
+
+### Сразу технически
+
+- "Asyncpg падает на pgBouncer transaction mode — нужен `statement_cache_size=0`"
+- "lifespan заменил on_event с FastAPI 0.93+"
+- "RLS на public.* блокирует PostgREST anon-доступ"
+- "Render Free spin-down 15 мин убивает long-poll бота"
+
+### Можно пояснить кратко
+
+- Render-quirks: rolling deploys, Free tier spin-down, port detection, Health Check
+- Supabase pooler quirks (port 5432 vs 6543, pool modes)
+- Upstash REST vs RESP, free tier limits
+- Telegram polling vs webhook trade-offs
+- Новые фичи Python 3.12+ если использую
+- MCP-протокол
+
+### Длина и формат
+
+- **Default = 3-7 предложений**
+- Yes/no — одно предложение
+- Развёрнуто только при: архитектурных trade-offs, новых платформенных концепциях, явной просьбе, security/data-loss рисках
+- Без жизненных аналогий
+- Без trailing summary
 - Таблицы — только при сравнении опций или показе данных
 - Заголовки `##` — только в реально длинных ответах (>15 строк)
-- Если спрашиваю "что такое X?" про новый платформенный концепт — ответ всё равно краткий, ссылка на доку лучше длинного объяснения
+- Эмодзи — только если просит явно
 
-### Код
-- Минимум комментариев (только "почему", не "что")
-- Диффом + одной строкой что изменилось
-- Если есть ссылка на доку или релевантный issue — давать её, не пересказывать
+### Watch
 
-## Когда отвечать развёрнуто
-
-- Архитектурное решение с неочевидными trade-offs
-- Новый платформенный/инфраструктурный концепт (Render-specific, Supabase-specific, MCP)
-- Я явно прошу подробностей
-- Безопасность/data-loss риски — здесь развёрнуто всегда
+Иногда спрашивает "что такое X?" не потому что не знает, а проверяет проектный контекст. Default — концизный технический ответ; если нужна глубина, попросит сам.
 
 ## Технические предпочтения
 
-- **OS**: macOS Apple Silicon (M1). Homebrew в `/opt/homebrew`. arm64 native.
-- **Stack этого проекта**: Python 3.12, FastAPI, asyncpg, redis-py, python-telegram-bot. Render hosting. Supabase Postgres + Upstash Redis.
-- **Языки**: код на Python, общение на русском. Code comments — можно по-русски.
-- **Git**: атомарные коммиты + conventional commits (`feat:`, `fix:`, `chore:`, `refactor:`, `docs:`).
-- **Линтинг**: ruff (формат + лайнт), pre-commit hooks.
-- **Идиомы**: type hints всегда, Pydantic для валидации, async везде где можно.
-
-## Безопасность
-
-- **Не вставлять секреты в чат** — credentials, API keys, пароли БД.
-- **Не пушить в `main` без явного разрешения** — даже в auto mode. Сначала commit локально.
-- **Не выполнять SQL на production** без явного разрешения с указанием цели.
-- **Деструктивные действия** (DROP, DELETE без WHERE, force push, rm -rf) — всегда подтверждение.
+- **OS**: macOS Apple Silicon M1, Homebrew в `/opt/homebrew`, arm64 native
+- **Stack**: Python 3.12, FastAPI, asyncpg, redis-py, python-telegram-bot. Render hosting. Supabase Postgres + Upstash Redis
+- **Languages**: код на Python, общение по-русски, code comments на русском допустимы
+- **Идиомы**: type hints всегда, Pydantic для валидации, async везде где I/O
 
 ## Auto mode
 
-Когда auto mode активен — действуй, не переспрашивай по мелочам. Деструктивные/production-write действия — всё равно подтверждение.
+Когда auto mode активен — действовать без переспросов по мелочам. Деструктивные/production-write действия — всё равно подтверждение.
 
 ## Полезные ссылки
 
-- [docs/TEAM_HANDOFF_CHECKLIST.md](docs/TEAM_HANDOFF_CHECKLIST.md) — что нужно сделать перед передачей репо команде
-- [.env.example](.env.example) — переменные окружения с пояснениями
-- [pyproject.toml](pyproject.toml) — конфиг ruff
-- [.pre-commit-config.yaml](.pre-commit-config.yaml) — git pre-commit хуки
+- [CONTRIBUTING.md](CONTRIBUTING.md) — полный гайд по работе с кодом
+- [README.md](README.md) — стек, деплой, rollback
+- [docs/TEAM_HANDOFF_CHECKLIST.md](docs/TEAM_HANDOFF_CHECKLIST.md) — чек-лист передачи команде
+- [migrations/README.md](migrations/README.md) — стратегия миграций БД
+- [.env.example](.env.example) — переменные окружения
+- [pyproject.toml](pyproject.toml) — ruff config
+- [.pre-commit-config.yaml](.pre-commit-config.yaml) — git hooks

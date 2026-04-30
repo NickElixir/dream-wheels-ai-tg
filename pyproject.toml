@@ -1,0 +1,48 @@
+[project]
+name = "dream-wheels-ai-tg"
+version = "0.1.0"
+description = "Telegram bot for AI car wheel try-on (Reve API)"
+requires-python = ">=3.12"
+
+# ============================================================
+# Ruff — форматтер + линтер в одном
+# Конфиг минимальный: можно добавлять правила по мере роста проекта
+# ============================================================
+[tool.ruff]
+line-length = 100  # 100 символов — комфортный middle-ground между 80 и "без лимита"
+target-version = "py312"
+
+# Папки, которые ruff игнорирует
+exclude = [
+    ".venv",
+    "__pycache__",
+    "static",
+    "migrations",
+]
+
+[tool.ruff.lint]
+# Включённые наборы правил:
+#   E, W   — pycodestyle (PEP 8 style)
+#   F      — pyflakes (unused imports, undefined names)
+#   I      — isort (порядок импортов)
+#   B      — bugbear (типичные баги: mutable default args, etc.)
+#   UP     — pyupgrade (использовать новый синтаксис Python 3.12)
+#   ASYNC  — async-специфичные проверки
+#   RUF    — ruff-специфичные правила
+select = ["E", "W", "F", "I", "B", "UP", "ASYNC", "RUF"]
+
+# Игнорируемые правила (можно убрать со временем):
+#   E501    — line too long (форматтер сам режет, но иногда длинные строки ок)
+#   RUF001  — ambiguous unicode char in string (false positive для русских строк)
+#   RUF002  — ambiguous unicode char in docstring
+#   RUF003  — ambiguous unicode char in comment (то же — русский кириллический текст)
+#   ASYNC230 — open() в async функции (требует aiofiles; для MVP с одной операцией — ок)
+#   B904    — raise from None в except (стилистика; нечастый кейс, не критично)
+#   W291    — trailing whitespace внутри SQL-строк """ """ (ruff format их не трогает)
+ignore = ["E501", "RUF001", "RUF002", "RUF003", "ASYNC230", "B904", "W291"]
+
+[tool.ruff.format]
+# Стиль форматирования: совместимый с black
+quote-style = "double"
+indent-style = "space"
+line-ending = "lf"

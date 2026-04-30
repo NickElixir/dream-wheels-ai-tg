@@ -1,0 +1,29 @@
+# Pre-commit hooks: запускаются автоматически перед каждым git commit.
+# Установка для разработчика:
+#   pip install pre-commit
+#   pre-commit install
+#
+# Запуск вручную на всех файлах:
+#   pre-commit run --all-files
+
+repos:
+  # Стандартные мелкие проверки от pre-commit команды
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace          # удаляет пробелы в конце строк
+      - id: end-of-file-fixer            # гарантирует \n в конце файла
+      - id: check-yaml                   # валидирует YAML-файлы
+      - id: check-toml                   # валидирует TOML
+      - id: check-added-large-files      # блокирует случайный коммит больших бинарников
+        args: ["--maxkb=500"]
+      - id: detect-private-key           # ловит SSH/PGP-ключи
+      - id: check-merge-conflict         # ловит маркеры <<<<<< в коде
+
+  # Ruff — форматтер + линтер
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.8.4
+    hooks:
+      - id: ruff-format                  # форматирует код
+      - id: ruff                         # линтит (после форматтера, чтобы не было конфликтов)
+        args: ["--fix"]                  # автоматически чинит то, что может

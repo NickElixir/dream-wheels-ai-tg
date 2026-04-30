@@ -15,9 +15,18 @@ logger = logging.getLogger(__name__)
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("httpcore").setLevel(logging.WARNING)
 
-# В bot.py отдельный Redis-клиент: бот работает в своём процессе,
-# не разделяет lifespan FastAPI. Для MVP это ок.
-redis_client = redis.from_url(REDIS_URL, decode_responses=True)
+# Бот работает в своём процессе и не разделяет lifespan FastAPI,
+# поэтому держит свой Redis-клиент. Создаём лениво, чтобы импорт
+# модуля не падал, если REDIS_URL не задан (тесты, локальный запуск).
+_redis_client: redis.Redis | None = None
+
+
+def _get_redis() -> redis.Redis:
+    global _redis_client
+    if _redis_client is None:
+        _redis_client = redis.from_url(REDIS_URL, decode_responses=True)
+    return _redis_client
+
 
 SESSION_TTL_SEC = 600
 POLL_INTERVAL_SEC = 3
@@ -32,19 +41,20 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     photo_file_id = update.message.photo[-1].file_id
 
+    rds = _get_redis()
     session_key = f"session:{user_id}:car_url"
-    cached_car_url = await redis_client.get(session_key)
+    cached_car_url = await rds.get(session_key)
 
     telegram_file = await context.bot.get_file(photo_file_id)
     current_photo_url = telegram_file.file_path
 
     if not cached_car_url:
-        await redis_client.setex(session_key, SESSION_TTL_SEC, current_photo_url)
+        await rds.setex(session_key, SESSION_TTL_SEC, current_photo_url)
         await update.message.reply_text("Фото авто получено! 🚗\nТеперь отправь фото диска.")
         return
 
     wheel_url = current_photo_url
-    await redis_client.delete(session_key)
+    await rds.delete(session_key)
 
     status_msg = await update.message.reply_text("Создаю задачу... ⏳")
 

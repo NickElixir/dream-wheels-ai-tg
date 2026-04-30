@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import uuid
+from contextlib import asynccontextmanager
 
 import aiohttp
 import asyncpg
@@ -25,12 +26,40 @@ PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "https://dream-wheels-ai-tg.onren
     "/"
 )
 
-app = FastAPI(title="Dream Wheels MVP")
-os.makedirs("static", exist_ok=True)  # Создаем папку, если ее нет
-app.mount("/static", StaticFiles(directory="static"), name="static")
 db_pool = None
 redis_client = None
 worker_task = None
+
+
+# ==========================================
+# ЖИЗНЕННЫЙ ЦИКЛ ПРИЛОЖЕНИЯ (lifespan)
+# Заменяет устаревшие @app.on_event("startup"/"shutdown") в FastAPI 0.110+.
+# Код до yield выполняется при старте, после yield — при остановке.
+# ==========================================
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global db_pool, redis_client, worker_task
+
+    # statement_cache_size=0 is required when DATABASE_URL points to
+    # Supabase pooler (port 6543) running in transaction pool_mode —
+    # otherwise asyncpg's prepared statements collide between pool sessions.
+    db_pool = await asyncpg.create_pool(DATABASE_URL, statement_cache_size=0)
+    redis_client = redis.from_url(REDIS_URL, decode_responses=True)
+    worker_task = asyncio.create_task(process_jobs_loop())
+
+    yield  # ← между yield приложение работает
+
+    if worker_task:
+        worker_task.cancel()
+    if db_pool:
+        await db_pool.close()
+    if redis_client:
+        await redis_client.close()
+
+
+app = FastAPI(title="Dream Wheels MVP", lifespan=lifespan)
+os.makedirs("static", exist_ok=True)  # Создаем папку, если ее нет
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
 # Модели данных
@@ -138,28 +167,6 @@ async def process_jobs_loop():
                         job_id,
                     )
             await asyncio.sleep(5)
-
-
-# ==========================================
-# ЖИЗНЕННЫЙ ЦИКЛ ПРИЛОЖЕНИЯ
-# ==========================================
-@app.on_event("startup")
-async def startup():
-    global db_pool, redis_client, worker_task
-    # statement_cache_size=0 is required when DATABASE_URL points to
-    # Supabase pooler (port 6543) running in transaction pool_mode —
-    # otherwise asyncpg's prepared statements collide between pool sessions.
-    db_pool = await asyncpg.create_pool(DATABASE_URL, statement_cache_size=0)
-    redis_client = redis.from_url(REDIS_URL, decode_responses=True)
-    worker_task = asyncio.create_task(process_jobs_loop())
-
-
-@app.on_event("shutdown")
-async def shutdown():
-    if worker_task:
-        worker_task.cancel()
-    await db_pool.close()
-    await redis_client.close()
 
 
 # ==========================================

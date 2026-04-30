@@ -13,7 +13,10 @@ from src import db, redis_client
 from src.config import PUBLIC_BASE_URL
 from src.reve_client import fetch_image_base64, remix_wheels_on_car
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
 logger = logging.getLogger(__name__)
 
 # Подавить INFO-логи httpx/httpcore — каждый запрос содержит BOT_TOKEN в URL
@@ -103,7 +106,7 @@ async def process_jobs_loop():
             logger.info(f"✅ Задача {job_id} завершена!")
 
         except Exception as e:
-            logger.error(f"❌ Ошибка воркера: {e}")
+            logger.exception(f"❌ Ошибка воркера на job_id={job_id}: {e}")
             if job_id:
                 async with pool.acquire() as conn:
                     await conn.execute(
@@ -157,7 +160,9 @@ async def create_job(request: JobCreateRequest):
             logger.info(f"✅ Задача {job_id} успешно записана в БД со статусом queued")
 
     except Exception as db_err:
-        logger.error(f"❌ ОШИБКА ЗАПИСИ В БД (INSERT): {db_err}")
+        logger.exception(
+            f"❌ ОШИБКА ЗАПИСИ В БД (INSERT) для telegram_user_id={request.telegram_user_id}: {db_err}"
+        )
         raise HTTPException(status_code=500, detail="Database insert failed")
 
     await rds.rpush(

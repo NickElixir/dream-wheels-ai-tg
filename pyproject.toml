@@ -39,8 +39,8 @@ select = ["E", "W", "F", "I", "B", "UP", "ASYNC", "RUF"]
 #   ASYNC230 — open() в async функции (требует aiofiles; для MVP с одной операцией — ок)
 #   B904    — raise from None в except (стилистика; нечастый кейс, не критично)
 #   W291    — trailing whitespace внутри SQL-строк """ """ (ruff format их не трогает)
-# ASYNC101 — open() в async функции (требует aiofiles; для MVP с одной записью — ок)
-ignore = ["E501", "RUF001", "RUF002", "RUF003", "ASYNC101", "B904", "W291"]
+# ASYNC230 — open() в async функции (требует aiofiles; для MVP с одной записью — ок)
+ignore = ["E501", "RUF001", "RUF002", "RUF003", "ASYNC230", "B904", "W291"]
 
 [tool.ruff.format]
 # Стиль форматирования: совместимый с black

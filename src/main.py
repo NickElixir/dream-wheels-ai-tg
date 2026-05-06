@@ -140,6 +140,24 @@ async def health_check():
     return {"status": "ok"}
 
 
+@app.get("/health/full")
+async def health_check_full():
+    """Полный health-check: пингует Postgres и Redis.
+
+    Используется внешним keep-alive (cron-job.org) — см. docs/keep-alive-setup.md.
+    Каждый вызов делает реальный SQL-запрос → Supabase не ставит проект на паузу
+    через 7 дней неактивности.
+    """
+    try:
+        async with db.get_pool().acquire() as conn:
+            await conn.fetchval("SELECT 1")
+        await redis_client.get_client().ping()
+        return {"status": "ok", "db": "alive", "redis": "alive"}
+    except Exception as exc:
+        logger.exception(f"❌ /health/full failed: {exc}")
+        raise HTTPException(status_code=503, detail=f"unhealthy: {exc}") from exc
+
+
 JOBS_RATE_LIMIT = 5  # запросов
 JOBS_RATE_WINDOW_SEC = 60  # за окно
 

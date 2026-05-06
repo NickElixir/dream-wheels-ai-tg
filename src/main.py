@@ -7,13 +7,17 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from src import db, redis_client
 from src.config import PUBLIC_BASE_URL
+from src.rate_limit import enforce_rate_limit
 from src.reve_client import fetch_image_base64, remix_wheels_on_car
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
 logger = logging.getLogger(__name__)
 
 # Подавить INFO-логи httpx/httpcore — каждый запрос содержит BOT_TOKEN в URL
@@ -46,10 +50,22 @@ os.makedirs("static", exist_ok=True)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
+TELEGRAM_FILE_PREFIX = "https://api.telegram.org/file/"
+
+
 class JobCreateRequest(BaseModel):
     telegram_user_id: int
     car_url: str
     wheel_url: str
+
+    @field_validator("car_url", "wheel_url")
+    @classmethod
+    def validate_telegram_url(cls, v: str) -> str:
+        # Защита от arbitrary URL: воркер скачивает контент по этому URL и шлёт
+        # в Reve API. Без проверки можно подставить любой http-эндпоинт.
+        if not v.startswith(TELEGRAM_FILE_PREFIX):
+            raise ValueError(f"URL должен начинаться с {TELEGRAM_FILE_PREFIX}")
+        return v
 
 
 class JobCreateResponse(BaseModel):
@@ -103,7 +119,7 @@ async def process_jobs_loop():
             logger.info(f"✅ Задача {job_id} завершена!")
 
         except Exception as e:
-            logger.error(f"❌ Ошибка воркера: {e}")
+            logger.exception(f"❌ Ошибка воркера на job_id={job_id}: {e}")
             if job_id:
                 async with pool.acquire() as conn:
                     await conn.execute(
@@ -124,8 +140,38 @@ async def health_check():
     return {"status": "ok"}
 
 
+@app.get("/health/full")
+async def health_check_full():
+    """Полный health-check: пингует Postgres и Redis.
+
+    Используется внешним keep-alive (cron-job.org) — см. docs/keep-alive-setup.md.
+    Каждый вызов делает реальный SQL-запрос → Supabase не ставит проект на паузу
+    через 7 дней неактивности.
+    """
+    try:
+        async with db.get_pool().acquire() as conn:
+            await conn.fetchval("SELECT 1")
+        await redis_client.get_client().ping()
+        return {"status": "ok", "db": "alive", "redis": "alive"}
+    except Exception as exc:
+        logger.exception(f"❌ /health/full failed: {exc}")
+        raise HTTPException(status_code=503, detail=f"unhealthy: {exc}") from exc
+
+
+JOBS_RATE_LIMIT = 5  # запросов
+JOBS_RATE_WINDOW_SEC = 60  # за окно
+
+
 @app.post("/jobs", response_model=JobCreateResponse)
 async def create_job(request: JobCreateRequest):
+    # Лимит на пользователя, чтобы один человек не выжег квоту Reve API.
+    await enforce_rate_limit(
+        scope="jobs",
+        identifier=request.telegram_user_id,
+        limit=JOBS_RATE_LIMIT,
+        window_sec=JOBS_RATE_WINDOW_SEC,
+    )
+
     logger.info(
         f"📥 Получен запрос на создание задачи. Авто: {request.car_url}, Диск: {request.wheel_url}"
     )
@@ -157,7 +203,9 @@ async def create_job(request: JobCreateRequest):
             logger.info(f"✅ Задача {job_id} успешно записана в БД со статусом queued")
 
     except Exception as db_err:
-        logger.error(f"❌ ОШИБКА ЗАПИСИ В БД (INSERT): {db_err}")
+        logger.exception(
+            f"❌ ОШИБКА ЗАПИСИ В БД (INSERT) для telegram_user_id={request.telegram_user_id}: {db_err}"
+        )
         raise HTTPException(status_code=500, detail="Database insert failed")
 
     await rds.rpush(

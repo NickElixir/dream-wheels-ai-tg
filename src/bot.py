@@ -68,7 +68,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 job_data = await resp.json()
                 job_id = job_data["job_id"]
         except Exception as e:
-            logger.error(f"Связь с API потеряна: {e}")
+            logger.exception(f"Связь с API потеряна для user_id={user_id}: {e}")
             await status_msg.edit_text("❌ Бэкенд недоступен.")
             return
 
@@ -99,7 +99,7 @@ async def poll_job_status(update: Update, status_msg, job_id: str):
                             return
 
             except Exception as e:
-                logger.error(f"Ошибка опроса: {e}")
+                logger.exception(f"Ошибка опроса job_id={job_id}: {e}")
                 continue
 
     await status_msg.edit_text("❌ Превышено время ожидания.")

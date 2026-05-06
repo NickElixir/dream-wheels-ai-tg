@@ -27,3 +27,16 @@ def test_create_job_validates_body():
     """Pydantic должен вернуть 422 на пустом теле — до похода в БД."""
     r = client.post("/jobs", json={})
     assert r.status_code == 422
+
+
+def test_create_job_rejects_non_telegram_url():
+    """car_url/wheel_url должны начинаться с https://api.telegram.org/file/."""
+    r = client.post(
+        "/jobs",
+        json={
+            "telegram_user_id": 1,
+            "car_url": "https://evil.example.com/car.jpg",
+            "wheel_url": "https://api.telegram.org/file/bot123/wheel.jpg",
+        },
+    )
+    assert r.status_code == 422

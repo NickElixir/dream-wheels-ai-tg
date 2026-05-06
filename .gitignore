@@ -144,6 +144,7 @@ celerybeat.pid
 # Claude Code local settings (personal permission rules)
 .claude/settings.local.json
 .claude/settings.json
+.claude/scheduled_tasks.lock
 env/
 venv/
 ENV/

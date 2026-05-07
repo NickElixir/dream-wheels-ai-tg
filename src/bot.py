@@ -3,10 +3,10 @@ import logging
 
 import aiohttp
 import redis.asyncio as redis
-from telegram import Update
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update, WebAppInfo
 from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
 
-from src.config import API_BASE_URL, BOT_TOKEN, REDIS_URL
+from src.config import API_BASE_URL, BOT_TOKEN, REDIS_URL, WEBAPP_URL
 
 logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -34,7 +34,13 @@ POLL_MAX_RETRIES = 60  # 60 * 3 = 3 минуты ожидания результ
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Привет! Отправь мне фотографию своего автомобиля.")
+    keyboard = InlineKeyboardMarkup(
+        [[InlineKeyboardButton("🚗 Открыть Dream Wheels", web_app=WebAppInfo(url=WEBAPP_URL))]]
+    )
+    await update.message.reply_text(
+        "Привет! Жми кнопку ниже, чтобы открыть Mini App, " "или отправь фото машины прямо в чат.",
+        reply_markup=keyboard,
+    )
 
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):

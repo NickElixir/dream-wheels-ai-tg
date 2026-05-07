@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#0a0a0b">
+    <title>Dream Wheels AI</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+</head>
+<body>
+    <main id="app">
+        <header class="topbar">
+            <div class="logo">DREAM<span>WHEELS</span> AI</div>
+            <div class="step-indicator" data-step-indicator>Шаг 1 из 3</div>
+        </header>
+
+        <section class="screen" data-screen="car" hidden>
+            <h1>Загрузи фото машины</h1>
+            <p class="hint">Целиком, сбоку, при хорошем освещении</p>
+            <label class="dropzone" data-upload-zone="car">
+                <input type="file" accept="image/*" data-input="car" hidden>
+                <div class="dropzone-icon">📷</div>
+                <div class="dropzone-text">Нажми, чтобы выбрать фото</div>
+                <div class="dropzone-sub">JPG или PNG, до 10 MB</div>
+            </label>
+            <div class="preview" data-preview="car" hidden>
+                <img alt="Превью машины" data-preview-img="car">
+                <button type="button" class="link" data-clear="car">Заменить фото</button>
+            </div>
+        </section>
+
+        <section class="screen" data-screen="wheel" hidden>
+            <h1>Загрузи фото диска</h1>
+            <p class="hint">Один диск анфас, белый или нейтральный фон</p>
+            <label class="dropzone" data-upload-zone="wheel">
+                <input type="file" accept="image/*" data-input="wheel" hidden>
+                <div class="dropzone-icon">⚙️</div>
+                <div class="dropzone-text">Нажми, чтобы выбрать фото</div>
+                <div class="dropzone-sub">JPG или PNG, до 10 MB</div>
+            </label>
+            <div class="preview" data-preview="wheel" hidden>
+                <img alt="Превью диска" data-preview-img="wheel">
+                <button type="button" class="link" data-clear="wheel">Заменить фото</button>
+            </div>
+        </section>
+
+        <section class="screen" data-screen="result" hidden>
+            <div class="status-block" data-status>
+                <div class="spinner" data-spinner></div>
+                <div class="status-text" data-status-text>Создаём задачу…</div>
+                <div class="status-sub" data-status-sub>Это может занять до 90 секунд</div>
+            </div>
+            <div class="result-block" data-result hidden>
+                <div class="result-icon">✅</div>
+                <p class="result-title">Задача принята</p>
+                <p class="result-caption">
+                    Это прототип для кастдева. Реальный AI-рендер с твоими дисками
+                    появится после подключения backend — в следующей версии.
+                </p>
+            </div>
+            <div class="error-block" data-error hidden>
+                <div class="error-icon">⚠️</div>
+                <div class="error-text" data-error-text>Что-то пошло не так</div>
+            </div>
+        </section>
+
+        <footer class="footer">
+            <span data-user-info>Не в Telegram</span>
+            <span class="dot">·</span>
+            <span>Прототип кастдева</span>
+        </footer>
+    </main>
+
+    <script src="app.js" type="module"></script>
+</body>
+</html>

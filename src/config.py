@@ -16,6 +16,11 @@ REDIS_URL = os.getenv("REDIS_URL")
 REVE_API_KEY = os.getenv("REVE_API_KEY")
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 
+# Supabase
+SUPABASE_PROJECT_REF = os.getenv("SUPABASE_PROJECT_REF", "qmgyccghsbdpehiybjae")
+SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+SUPABASE_STORAGE_URL = f"https://{SUPABASE_PROJECT_REF}.supabase.co/storage/v1"
+
 # URLs
 PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "https://dream-wheels-ai-tg.onrender.com").rstrip(
     "/"

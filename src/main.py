@@ -1,17 +1,16 @@
 import asyncio
+import base64
 import json
 import logging
 import os
-import uuid
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, field_validator
 
-from src import db, redis_client
-from src.config import PUBLIC_BASE_URL
-from src.rate_limit import enforce_rate_limit
+from src import db, jobs_api, redis_client, storage
+from src.config import PUBLIC_BASE_URL, WEBAPP_URL
 from src.reve_client import fetch_image_base64, remix_wheels_on_car
 
 logging.basicConfig(
@@ -46,36 +45,69 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Dream Wheels MVP", lifespan=lifespan)
+
+# CORS — webapp хостится на Vercel и шлёт fetch с другого домена.
+# Telegram-клиент проксирует Mini App тоже как origin: разрешаем т.г-домены
+# чтобы preview Mini App в Telegram Web работал без отдельного фикса.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[WEBAPP_URL, "https://web.telegram.org"],
+    allow_origin_regex=r"https://.*\.vercel\.app",
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["*"],
+    allow_credentials=False,
+    max_age=600,
+)
+
 os.makedirs("static", exist_ok=True)
 app.mount("/static", StaticFiles(directory="static"), name="static")
+app.include_router(jobs_api.router)
 
 
-TELEGRAM_FILE_PREFIX = "https://api.telegram.org/file/"
+async def _load_inputs_as_b64(job_data: dict) -> tuple[str, str]:
+    """Получить car/wheel в base64. Поддерживает оба источника payload'а:
+
+    - bot:    {car_url, wheel_url}        — Telegram file URLs
+    - webapp: {car_storage_path, wheel_storage_path, source: "webapp"}
+              — пути в Supabase Storage `raw` bucket
+    """
+    if job_data.get("source") == "webapp":
+        car_bytes = await storage.download_bytes(
+            bucket=storage.RAW_BUCKET, path=job_data["car_storage_path"]
+        )
+        wheel_bytes = await storage.download_bytes(
+            bucket=storage.RAW_BUCKET, path=job_data["wheel_storage_path"]
+        )
+        return (
+            base64.b64encode(car_bytes).decode("utf-8"),
+            base64.b64encode(wheel_bytes).decode("utf-8"),
+        )
+    car_b64 = await fetch_image_base64(job_data["car_url"])
+    wheel_b64 = await fetch_image_base64(job_data["wheel_url"])
+    return car_b64, wheel_b64
 
 
-class JobCreateRequest(BaseModel):
-    telegram_user_id: int
-    car_url: str
-    wheel_url: str
+async def _save_render_output(job_id: str, job_data: dict, img_bytes: bytes) -> str:
+    """Сохранить рендер. webapp → Supabase results, бот → локальный static/."""
+    if job_data.get("source") == "webapp":
+        url = await storage.upload_result_image(job_id=job_id, data=img_bytes)
+        # Авто-уборка raw — больше не нужен после успешного рендера.
+        # Не падаем если удалить не удалось — это housekeeping.
+        for path_key in ("car_storage_path", "wheel_storage_path"):
+            raw_path = job_data.get(path_key)
+            if not raw_path:
+                continue
+            try:
+                await storage.delete_object(bucket=storage.RAW_BUCKET, path=raw_path)
+            except storage.StorageError as exc:
+                logger.warning(f"⚠️  raw cleanup {raw_path} не удался: {exc}")
+        return url
 
-    @field_validator("car_url", "wheel_url")
-    @classmethod
-    def validate_telegram_url(cls, v: str) -> str:
-        # Защита от arbitrary URL: воркер скачивает контент по этому URL и шлёт
-        # в Reve API. Без проверки можно подставить любой http-эндпоинт.
-        if not v.startswith(TELEGRAM_FILE_PREFIX):
-            raise ValueError(f"URL должен начинаться с {TELEGRAM_FILE_PREFIX}")
-        return v
-
-
-class JobCreateResponse(BaseModel):
-    job_id: str
-    status: str
-
-
-class JobStatusResponse(BaseModel):
-    status: str
-    output_image_url: str | None = None
+    filename = f"res_{job_id}.jpg"
+    path = os.path.join("static", filename)
+    with open(path, "wb") as f:
+        f.write(img_bytes)
+    return f"{PUBLIC_BASE_URL}/static/{filename}"
 
 
 async def process_jobs_loop():
@@ -92,22 +124,17 @@ async def process_jobs_loop():
 
             job_data = json.loads(result[1])
             job_id = job_data["job_id"]
-            logger.info(f"🔥 Взята задача: {job_id}")
+            source = job_data.get("source", "bot")
+            logger.info(f"🔥 Взята задача: {job_id} (source={source})")
 
             async with pool.acquire() as conn:
                 await conn.execute(
                     "UPDATE jobs SET status = 'processing' WHERE id = $1::uuid", job_id
                 )
 
-            car_b64 = await fetch_image_base64(job_data["car_url"])
-            wheel_b64 = await fetch_image_base64(job_data["wheel_url"])
-
+            car_b64, wheel_b64 = await _load_inputs_as_b64(job_data)
             img_bytes = await remix_wheels_on_car(car_b64, wheel_b64)
-            filename = f"res_{job_id}.jpg"
-            path = os.path.join("static", filename)
-            with open(path, "wb") as f:
-                f.write(img_bytes)
-            output_url = f"{PUBLIC_BASE_URL}/static/{filename}"
+            output_url = await _save_render_output(job_id, job_data, img_bytes)
 
             async with pool.acquire() as conn:
                 await conn.execute(
@@ -156,80 +183,3 @@ async def health_check_full():
     except Exception as exc:
         logger.exception(f"❌ /health/full failed: {exc}")
         raise HTTPException(status_code=503, detail=f"unhealthy: {exc}") from exc
-
-
-JOBS_RATE_LIMIT = 5  # запросов
-JOBS_RATE_WINDOW_SEC = 60  # за окно
-
-
-@app.post("/jobs", response_model=JobCreateResponse)
-async def create_job(request: JobCreateRequest):
-    # Лимит на пользователя, чтобы один человек не выжег квоту Reve API.
-    await enforce_rate_limit(
-        scope="jobs",
-        identifier=request.telegram_user_id,
-        limit=JOBS_RATE_LIMIT,
-        window_sec=JOBS_RATE_WINDOW_SEC,
-    )
-
-    logger.info(
-        f"📥 Получен запрос на создание задачи. Авто: {request.car_url}, Диск: {request.wheel_url}"
-    )
-    job_id = str(uuid.uuid4())
-    pool = db.get_pool()
-    rds = redis_client.get_client()
-
-    try:
-        async with pool.acquire() as conn:
-            user_id = await conn.fetchval(
-                "SELECT id FROM users WHERE telegram_user_id = $1", request.telegram_user_id
-            )
-            if not user_id:
-                user_id = await conn.fetchval(
-                    "INSERT INTO users (telegram_user_id) VALUES ($1) RETURNING id",
-                    request.telegram_user_id,
-                )
-
-            await conn.execute(
-                """
-                INSERT INTO jobs (id, user_id, status, car_image_url, wheel_image_url)
-                VALUES ($1::uuid, $2, 'queued', $3, $4)
-                """,
-                job_id,
-                user_id,
-                request.car_url,
-                request.wheel_url,
-            )
-            logger.info(f"✅ Задача {job_id} успешно записана в БД со статусом queued")
-
-    except Exception as db_err:
-        logger.exception(
-            f"❌ ОШИБКА ЗАПИСИ В БД (INSERT) для telegram_user_id={request.telegram_user_id}: {db_err}"
-        )
-        raise HTTPException(status_code=500, detail="Database insert failed")
-
-    await rds.rpush(
-        "job_queue",
-        json.dumps(
-            {
-                "job_id": job_id,
-                "telegram_user_id": request.telegram_user_id,
-                "car_url": request.car_url,
-                "wheel_url": request.wheel_url,
-            }
-        ),
-    )
-    return JobCreateResponse(job_id=job_id, status="queued")
-
-
-@app.get("/jobs/{job_id}", response_model=JobStatusResponse)
-async def get_job_status(job_id: str):
-    """Polling статуса задачи."""
-    pool = db.get_pool()
-    async with pool.acquire() as conn:
-        row = await conn.fetchrow(
-            "SELECT status, output_image_url FROM jobs WHERE id = $1::uuid", job_id
-        )
-        if not row:
-            raise HTTPException(status_code=404, detail="Job not found")
-        return JobStatusResponse(status=row["status"], output_image_url=row["output_image_url"])

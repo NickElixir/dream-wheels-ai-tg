@@ -148,8 +148,8 @@ async def create_job(request: JobCreateRequest):
 async def upload_job(
     car_image: Annotated[UploadFile, File()],
     wheel_image: Annotated[UploadFile, File()],
-    init_data: Annotated[str, Form()],
     idempotency_key: Annotated[str, Form()],
+    init_data: Annotated[str, Form()] = "",
 ):
     """Создание задачи из webapp — приходят бинарники car/wheel + Telegram initData.
 

@@ -251,12 +251,6 @@ function submitJob() {
     setTimeout(() => {
         statusBlock.hidden = true;
         resultBlock.hidden = false;
-        const resultImg = document.querySelector("[data-result-img]");
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            resultImg.src = e.target.result;
-        };
-        reader.readAsDataURL(state.files.car);
         haptic("success");
     }, 4000);
 }

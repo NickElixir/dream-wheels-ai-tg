@@ -1,9 +1,4 @@
-// Dream Wheels AI — Telegram WebApp prototype
-//
-// Этот скрипт реализует трёхэкранный flow: машина → диск → результат.
-// Backend интеграция (POST /jobs/upload) пока не подключена — это первый
-// итеративный деплой, чтобы проверить что Vercel + Telegram WebApp работают
-// вместе. Пока fetch заменён на mock-задержку с заглушкой результата.
+// Dream Wheels AI — Telegram WebApp
 
 const tg = window.Telegram?.WebApp;
 // SDK-скрипт выставляет window.Telegram.WebApp даже в обычном браузере, но
@@ -221,14 +216,17 @@ function handleFileSelected(kind, file) {
     refreshButtonsForScreen();
 }
 
-/* ---------- Submit (заглушка) ----------
- *
- * TODO: подключить к POST /jobs/upload когда backend endpoint будет готов.
- * Сейчас имитируем 4 секунды обработки и показываем фото машины как
- * "результат" — этого достаточно чтобы посмотреть UX flow на кастдеве.
- */
+/* ---------- Submit ---------- */
 
-function submitJob() {
+const API_BASE_URL = "https://dream-wheels-ai-tg.onrender.com";
+const POLL_INTERVAL_MS = 3000;
+const POLL_TIMEOUT_MS = 110000; // Reve timeout 90s + margin
+
+function sleep(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function submitJob() {
     showScreen("result");
     haptic("light");
 
@@ -237,22 +235,75 @@ function submitJob() {
     const errorBlock = document.querySelector("[data-error]");
     const statusText = document.querySelector("[data-status-text]");
     const statusSub = document.querySelector("[data-status-sub]");
+    const resultImg = document.querySelector("[data-result-img]");
+    const errorText = document.querySelector("[data-error-text]");
 
     statusBlock.hidden = false;
     resultBlock.hidden = true;
     errorBlock.hidden = true;
-    statusText.textContent = "Создаём задачу…";
+    statusText.textContent = "Загружаем файлы…";
     statusSub.textContent = "Это может занять до 90 секунд";
 
-    setTimeout(() => {
-        statusText.textContent = "Генерируем рендер…";
-    }, 1200);
-
-    setTimeout(() => {
+    function showError(msg) {
         statusBlock.hidden = true;
-        resultBlock.hidden = false;
-        haptic("success");
-    }, 4000);
+        resultBlock.hidden = true;
+        errorBlock.hidden = false;
+        if (errorText) errorText.textContent = msg;
+        haptic("error");
+    }
+
+    const formData = new FormData();
+    formData.append("car_image", state.files.car);
+    formData.append("wheel_image", state.files.wheel);
+    formData.append("init_data", HAS_TG ? tg.initData : "");
+    formData.append("idempotency_key", crypto.randomUUID());
+
+    let jobId;
+    try {
+        const resp = await fetch(`${API_BASE_URL}/jobs/upload`, {
+            method: "POST",
+            body: formData,
+        });
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok) {
+            throw new Error(data.detail || `HTTP ${resp.status}`);
+        }
+        jobId = data.job_id;
+        state.jobId = jobId;
+    } catch (e) {
+        showError(e.message);
+        return;
+    }
+
+    statusText.textContent = "Генерируем рендер…";
+
+    const deadline = Date.now() + POLL_TIMEOUT_MS;
+    while (Date.now() < deadline) {
+        await sleep(POLL_INTERVAL_MS);
+        let statusData;
+        try {
+            const r = await fetch(`${API_BASE_URL}/jobs/${jobId}/status`);
+            statusData = await r.json();
+        } catch (_) {
+            continue;
+        }
+
+        if (statusData.status === "completed") {
+            statusBlock.hidden = true;
+            if (resultImg && statusData.result_url) {
+                resultImg.src = statusData.result_url;
+                resultImg.hidden = false;
+            }
+            resultBlock.hidden = false;
+            haptic("success");
+            return;
+        }
+        if (statusData.status === "failed") {
+            showError(statusData.error || "Ошибка генерации");
+            return;
+        }
+    }
+    showError("Превышено время ожидания (>110 с)");
 }
 
 /* ---------- Boot ---------- */

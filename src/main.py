@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import json
 import logging
 import os
@@ -8,7 +9,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from src import db, jobs_api, redis_client
+from src import db, jobs_api, redis_client, storage
 from src.config import PUBLIC_BASE_URL, WEBAPP_URL
 from src.reve_client import fetch_image_base64, remix_wheels_on_car
 
@@ -63,6 +64,52 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 app.include_router(jobs_api.router)
 
 
+async def _load_inputs_as_b64(job_data: dict) -> tuple[str, str]:
+    """Получить car/wheel в base64. Поддерживает оба источника payload'а:
+
+    - bot:    {car_url, wheel_url}        — Telegram file URLs
+    - webapp: {car_storage_path, wheel_storage_path, source: "webapp"}
+              — пути в Supabase Storage `raw` bucket
+    """
+    if job_data.get("source") == "webapp":
+        car_bytes = await storage.download_bytes(
+            bucket=storage.RAW_BUCKET, path=job_data["car_storage_path"]
+        )
+        wheel_bytes = await storage.download_bytes(
+            bucket=storage.RAW_BUCKET, path=job_data["wheel_storage_path"]
+        )
+        return (
+            base64.b64encode(car_bytes).decode("utf-8"),
+            base64.b64encode(wheel_bytes).decode("utf-8"),
+        )
+    car_b64 = await fetch_image_base64(job_data["car_url"])
+    wheel_b64 = await fetch_image_base64(job_data["wheel_url"])
+    return car_b64, wheel_b64
+
+
+async def _save_render_output(job_id: str, job_data: dict, img_bytes: bytes) -> str:
+    """Сохранить рендер. webapp → Supabase results, бот → локальный static/."""
+    if job_data.get("source") == "webapp":
+        url = await storage.upload_result_image(job_id=job_id, data=img_bytes)
+        # Авто-уборка raw — больше не нужен после успешного рендера.
+        # Не падаем если удалить не удалось — это housekeeping.
+        for path_key in ("car_storage_path", "wheel_storage_path"):
+            raw_path = job_data.get(path_key)
+            if not raw_path:
+                continue
+            try:
+                await storage.delete_object(bucket=storage.RAW_BUCKET, path=raw_path)
+            except storage.StorageError as exc:
+                logger.warning(f"⚠️  raw cleanup {raw_path} не удался: {exc}")
+        return url
+
+    filename = f"res_{job_id}.jpg"
+    path = os.path.join("static", filename)
+    with open(path, "wb") as f:
+        f.write(img_bytes)
+    return f"{PUBLIC_BASE_URL}/static/{filename}"
+
+
 async def process_jobs_loop():
     logger.info("🟢 ВОРКЕР ЗАПУЩЕН")
     pool = db.get_pool()
@@ -77,22 +124,17 @@ async def process_jobs_loop():
 
             job_data = json.loads(result[1])
             job_id = job_data["job_id"]
-            logger.info(f"🔥 Взята задача: {job_id}")
+            source = job_data.get("source", "bot")
+            logger.info(f"🔥 Взята задача: {job_id} (source={source})")
 
             async with pool.acquire() as conn:
                 await conn.execute(
                     "UPDATE jobs SET status = 'processing' WHERE id = $1::uuid", job_id
                 )
 
-            car_b64 = await fetch_image_base64(job_data["car_url"])
-            wheel_b64 = await fetch_image_base64(job_data["wheel_url"])
-
+            car_b64, wheel_b64 = await _load_inputs_as_b64(job_data)
             img_bytes = await remix_wheels_on_car(car_b64, wheel_b64)
-            filename = f"res_{job_id}.jpg"
-            path = os.path.join("static", filename)
-            with open(path, "wb") as f:
-                f.write(img_bytes)
-            output_url = f"{PUBLIC_BASE_URL}/static/{filename}"
+            output_url = await _save_render_output(job_id, job_data, img_bytes)
 
             async with pool.acquire() as conn:
                 await conn.execute(

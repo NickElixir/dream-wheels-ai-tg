@@ -266,7 +266,10 @@ async function submitJob() {
         });
         const data = await resp.json().catch(() => ({}));
         if (!resp.ok) {
-            throw new Error(data.detail || `HTTP ${resp.status}`);
+            const detail = Array.isArray(data.detail)
+                ? data.detail.map((e) => e.msg).join("; ")
+                : (data.detail || `HTTP ${resp.status}`);
+            throw new Error(detail);
         }
         jobId = data.job_id;
         state.jobId = jobId;

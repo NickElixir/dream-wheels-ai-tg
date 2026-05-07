@@ -241,8 +241,8 @@ async function submitJob() {
     statusBlock.hidden = false;
     resultBlock.hidden = true;
     errorBlock.hidden = true;
-    statusText.textContent = "Загружаем файлы…";
-    statusSub.textContent = "Это может занять до 90 секунд";
+    statusText.textContent = "Запускаем сервер…";
+    statusSub.textContent = "Первый запуск может занять до 40 секунд";
 
     function showError(msg) {
         statusBlock.hidden = true;
@@ -251,6 +251,17 @@ async function submitJob() {
         if (errorText) errorText.textContent = msg;
         haptic("error");
     }
+
+    // Render Free tier спит после 15 мин простоя — пингуем /health чтобы
+    // разбудить сервис до отправки файлов (cold start ~30с).
+    try {
+        await fetch(`${API_BASE_URL}/health`, { method: "GET" });
+    } catch (_) {
+        // ignore — if health fails, upload will fail too and show proper error
+    }
+
+    statusText.textContent = "Загружаем файлы…";
+    statusSub.textContent = "Это может занять до 90 секунд";
 
     const formData = new FormData();
     formData.append("car_image", state.files.car);

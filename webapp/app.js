@@ -263,6 +263,11 @@ async function submitJob() {
     statusText.textContent = "Загружаем файлы…";
     statusSub.textContent = "Это может занять до 90 секунд";
 
+    if (!state.files.car || !state.files.wheel) {
+        showError("Файлы не выбраны — вернитесь и загрузите оба фото");
+        return;
+    }
+
     const formData = new FormData();
     formData.append("car_image", state.files.car);
     formData.append("wheel_image", state.files.wheel);

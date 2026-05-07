@@ -5,10 +5,11 @@ import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from src import db, jobs_api, redis_client
-from src.config import PUBLIC_BASE_URL
+from src.config import PUBLIC_BASE_URL, WEBAPP_URL
 from src.reve_client import fetch_image_base64, remix_wheels_on_car
 
 logging.basicConfig(
@@ -43,6 +44,20 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Dream Wheels MVP", lifespan=lifespan)
+
+# CORS — webapp хостится на Vercel и шлёт fetch с другого домена.
+# Telegram-клиент проксирует Mini App тоже как origin: разрешаем т.г-домены
+# чтобы preview Mini App в Telegram Web работал без отдельного фикса.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[WEBAPP_URL, "https://web.telegram.org"],
+    allow_origin_regex=r"https://.*\.vercel\.app",
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["*"],
+    allow_credentials=False,
+    max_age=600,
+)
+
 os.makedirs("static", exist_ok=True)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 app.include_router(jobs_api.router)

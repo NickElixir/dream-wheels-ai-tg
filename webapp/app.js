@@ -201,7 +201,19 @@ function attachFileHandlers() {
 }
 
 function handleFileSelected(kind, file) {
-    state.files[kind] = file;
+    // iOS Telegram WebView теряет File reference при переходах между экранами,
+    // поэтому читаем содержимое в Blob сразу и храним его — Blob можно передать
+    // в FormData точно так же как File. Параллельно делаем data-URL preview.
+    file.arrayBuffer().then((buf) => {
+        state.files[kind] = {
+            blob: new Blob([buf], { type: file.type }),
+            name: file.name,
+            size: file.size,
+            type: file.type,
+        };
+        refreshButtonsForScreen();
+    });
+
     const reader = new FileReader();
     reader.onload = (e) => {
         const img = document.querySelector(`[data-preview-img="${kind}"]`);
@@ -213,7 +225,6 @@ function handleFileSelected(kind, file) {
     };
     reader.readAsDataURL(file);
     haptic("light");
-    refreshButtonsForScreen();
 }
 
 /* ---------- Submit ---------- */
@@ -264,22 +275,22 @@ async function submitJob() {
     statusSub.textContent = "Это может занять до 90 секунд";
 
     console.log("[DW] submit state:", {
-        carFile: state.files.car?.name,
+        carName: state.files.car?.name,
         carSize: state.files.car?.size,
-        wheelFile: state.files.wheel?.name,
+        wheelName: state.files.wheel?.name,
         wheelSize: state.files.wheel?.size,
         hasTG: HAS_TG,
         initDataLen: HAS_TG ? (tg.initData || "").length : 0,
     });
 
-    if (!state.files.car || !state.files.wheel) {
+    if (!state.files.car?.blob || !state.files.wheel?.blob) {
         showError("Файлы не выбраны — вернитесь и загрузите оба фото");
         return;
     }
 
     const formData = new FormData();
-    formData.append("car_image", state.files.car);
-    formData.append("wheel_image", state.files.wheel);
+    formData.append("car_image", state.files.car.blob, state.files.car.name);
+    formData.append("wheel_image", state.files.wheel.blob, state.files.wheel.name);
     formData.append("init_data", HAS_TG ? tg.initData : "");
     formData.append("idempotency_key", crypto.randomUUID());
 

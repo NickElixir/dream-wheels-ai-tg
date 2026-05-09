@@ -194,6 +194,21 @@ h1 {
     color: var(--text-muted);
 }
 
+.status-debug {
+    width: 100%;
+    max-width: 360px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--border);
+    color: var(--text-subtle);
+    font-size: 12px;
+    line-height: 1.45;
+    text-align: left;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
 .result-block {
     display: flex;
     flex-direction: column;

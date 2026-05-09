@@ -216,26 +216,6 @@ h1 {
     gap: 14px;
 }
 
-.download-button {
-    width: 100%;
-    padding: 13px 16px;
-    border: 1px solid var(--border-strong);
-    border-radius: 14px;
-    background: rgba(255, 255, 255, 0.04);
-    color: var(--text);
-    font: inherit;
-    font-size: 15px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: background 0.15s, border-color 0.15s, transform 0.15s;
-}
-
-.download-button:active {
-    background: rgba(255, 255, 255, 0.08);
-    border-color: var(--accent);
-    transform: translateY(1px);
-}
-
 .result-icon {
     font-size: 56px;
     line-height: 1;

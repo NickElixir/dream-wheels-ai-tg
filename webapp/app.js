@@ -25,7 +25,6 @@ const state = {
     screen: "upload",
     files: { car: null, wheel: null },
     jobId: null,
-    resultUrl: null,
     submitting: false,
 };
 
@@ -164,15 +163,12 @@ function resetFlow() {
     state.submitting = false;
     state.files = { car: null, wheel: null };
     state.jobId = null;
-    state.resultUrl = null;
     ["car", "wheel"].forEach((s) => {
         const preview = document.querySelector(`[data-preview="${s}"]`);
         const zone = document.querySelector(`[data-upload-zone="${s}"]`);
         if (preview) preview.hidden = true;
         if (zone) zone.hidden = false;
     });
-    const downloadButton = document.querySelector("[data-download-result]");
-    if (downloadButton) downloadButton.hidden = true;
     document.querySelectorAll("input[data-input]").forEach((i) => (i.value = ""));
     showScreen("upload");
 }
@@ -229,35 +225,6 @@ function handleFileSelected(kind, file) {
     };
     reader.readAsDataURL(file);
     haptic("light");
-}
-
-function downloadResult() {
-    if (!state.resultUrl) return;
-
-    const link = document.createElement("a");
-    link.href = state.resultUrl;
-    link.download = `dream-wheels-${state.jobId || "result"}.png`;
-    link.rel = "noopener";
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-
-    // Telegram WebView может игнорировать download-атрибут. Если вкладка не
-    // начала скачивание, у юзера хотя бы откроется сама картинка отдельным tap.
-    setTimeout(() => {
-        if (document.visibilityState === "visible") {
-            window.open(state.resultUrl, "_blank", "noopener");
-        }
-    }, 400);
-}
-
-function attachResultHandlers() {
-    const downloadButton = document.querySelector("[data-download-result]");
-    if (!downloadButton) return;
-    downloadButton.addEventListener("click", () => {
-        downloadResult();
-        haptic("success");
-    });
 }
 
 /* ---------- Submit ---------- */
@@ -420,13 +387,8 @@ async function submitJob() {
             state.submitting = false;
             statusBlock.hidden = true;
             if (resultImg && statusData.result_url) {
-                state.resultUrl = statusData.result_url;
                 resultImg.src = statusData.result_url;
                 resultImg.hidden = false;
-            }
-            const downloadButton = document.querySelector("[data-download-result]");
-            if (downloadButton) {
-                downloadButton.hidden = !state.resultUrl;
             }
             resultBlock.hidden = false;
             refreshButtonsForScreen();
@@ -448,6 +410,5 @@ async function submitJob() {
 document.addEventListener("DOMContentLoaded", () => {
     initTelegram();
     attachFileHandlers();
-    attachResultHandlers();
     showScreen("upload");
 });

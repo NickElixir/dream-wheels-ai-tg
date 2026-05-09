@@ -237,6 +237,13 @@ function sleep(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function makeIdempotencyKey() {
+    if (globalThis.crypto?.randomUUID) {
+        return globalThis.crypto.randomUUID();
+    }
+    return `dw-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
 async function submitJob() {
     if (state.submitting) return;
     state.submitting = true;
@@ -248,14 +255,30 @@ async function submitJob() {
     const errorBlock = document.querySelector("[data-error]");
     const statusText = document.querySelector("[data-status-text]");
     const statusSub = document.querySelector("[data-status-sub]");
+    const statusDebug = document.querySelector("[data-status-debug]");
     const resultImg = document.querySelector("[data-result-img]");
     const errorText = document.querySelector("[data-error-text]");
+    const debugLines = [];
+
+    function pushDebug(label, extra = null) {
+        const line = extra ? `${label}: ${extra}` : label;
+        debugLines.push(line);
+        console.log("[DW]", line);
+        if (statusDebug) {
+            statusDebug.hidden = false;
+            statusDebug.textContent = debugLines.join("\n");
+        }
+    }
 
     statusBlock.hidden = false;
     resultBlock.hidden = true;
     errorBlock.hidden = true;
     statusText.textContent = "Запускаем сервер…";
     statusSub.textContent = "Первый запуск может занять до 40 секунд";
+    if (statusDebug) {
+        statusDebug.hidden = true;
+        statusDebug.textContent = "";
+    }
 
     function showError(msg) {
         state.submitting = false;
@@ -264,14 +287,20 @@ async function submitJob() {
         errorBlock.hidden = false;
         if (errorText) errorText.textContent = msg;
         refreshButtonsForScreen();
+        pushDebug("showError", msg);
         haptic("error");
     }
+
+    pushDebug("submit:start");
 
     // Render Free tier спит после 15 мин простоя — пингуем /health чтобы
     // разбудить сервис до отправки файлов (cold start ~30с).
     try {
+        pushDebug("health:request");
         await fetch(`${API_BASE_URL}/health`, { method: "GET" });
+        pushDebug("health:ok");
     } catch (_) {
+        pushDebug("health:fail");
         // ignore — if health fails, upload will fail too and show proper error
     }
 
@@ -280,12 +309,25 @@ async function submitJob() {
 
     console.log("[DW] submit state:", {
         carName: state.files.car?.name,
+        carBlobSize: state.files.car?.blob?.size,
         carSize: state.files.car?.size,
         wheelName: state.files.wheel?.name,
+        wheelBlobSize: state.files.wheel?.blob?.size,
         wheelSize: state.files.wheel?.size,
         hasTG: HAS_TG,
         initDataLen: HAS_TG ? (tg.initData || "").length : 0,
     });
+    pushDebug(
+        "files",
+        JSON.stringify({
+            carName: state.files.car?.name,
+            carBlobSize: state.files.car?.blob?.size,
+            wheelName: state.files.wheel?.name,
+            wheelBlobSize: state.files.wheel?.blob?.size,
+            hasTG: HAS_TG,
+            initDataLen: HAS_TG ? (tg.initData || "").length : 0,
+        })
+    );
 
     if (!state.files.car?.blob || !state.files.wheel?.blob) {
         showError("Файлы не выбраны — вернитесь и загрузите оба фото");
@@ -296,15 +338,20 @@ async function submitJob() {
     formData.append("car_image", state.files.car.blob, state.files.car.name);
     formData.append("wheel_image", state.files.wheel.blob, state.files.wheel.name);
     formData.append("init_data", HAS_TG ? tg.initData : "");
-    formData.append("idempotency_key", crypto.randomUUID());
+    const idempotencyKey = makeIdempotencyKey();
+    formData.append("idempotency_key", idempotencyKey);
+    pushDebug("upload:key", idempotencyKey);
 
     let jobId;
     try {
+        pushDebug("upload:request");
         const resp = await fetch(`${API_BASE_URL}/jobs/upload`, {
             method: "POST",
             body: formData,
         });
+        pushDebug("upload:response", `status=${resp.status}`);
         const data = await resp.json().catch(() => ({}));
+        pushDebug("upload:body", JSON.stringify(data));
         if (!resp.ok) {
             const detail = Array.isArray(data.detail)
                 ? data.detail.map((e) => e.msg).join("; ")
@@ -313,21 +360,26 @@ async function submitJob() {
         }
         jobId = data.job_id;
         state.jobId = jobId;
+        pushDebug("upload:job", jobId);
     } catch (e) {
         showError(e.message);
         return;
     }
 
     statusText.textContent = "Генерируем рендер…";
+    pushDebug("poll:start");
 
     const deadline = Date.now() + POLL_TIMEOUT_MS;
     while (Date.now() < deadline) {
         await sleep(POLL_INTERVAL_MS);
         let statusData;
         try {
+            pushDebug("poll:request", jobId);
             const r = await fetch(`${API_BASE_URL}/jobs/${jobId}/status`);
             statusData = await r.json();
+            pushDebug("poll:response", JSON.stringify(statusData));
         } catch (_) {
+            pushDebug("poll:network-fail");
             continue;
         }
 
@@ -340,6 +392,7 @@ async function submitJob() {
             }
             resultBlock.hidden = false;
             refreshButtonsForScreen();
+            pushDebug("poll:completed");
             haptic("success");
             return;
         }
@@ -348,6 +401,7 @@ async function submitJob() {
             return;
         }
     }
+    pushDebug("poll:timeout");
     showError("Превышено время ожидания (>110 с)");
 }
 

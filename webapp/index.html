@@ -12,36 +12,33 @@
     <main id="app">
         <header class="topbar">
             <div class="logo">DREAM<span>WHEELS</span> AI</div>
-            <div class="step-indicator" data-step-indicator>Шаг 1 из 3</div>
+            <div class="step-indicator" data-step-indicator>Загрузка</div>
         </header>
 
-        <section class="screen" data-screen="car" hidden>
-            <h1>Загрузи фото машины</h1>
-            <p class="hint">Целиком, сбоку, при хорошем освещении</p>
+        <section class="screen" data-screen="upload" hidden>
+            <h1>Загрузи фото машины и диска</h1>
+            <p class="hint">Машина целиком сбоку, диск анфас. JPG или PNG, до 10 MB.</p>
+
             <label class="dropzone" data-upload-zone="car">
                 <input type="file" accept="image/*" data-input="car" hidden>
                 <div class="dropzone-icon">📷</div>
-                <div class="dropzone-text">Нажми, чтобы выбрать фото</div>
-                <div class="dropzone-sub">JPG или PNG, до 10 MB</div>
+                <div class="dropzone-text">Фото машины</div>
+                <div class="dropzone-sub">Нажми, чтобы выбрать</div>
             </label>
             <div class="preview" data-preview="car" hidden>
                 <img alt="Превью машины" data-preview-img="car">
-                <button type="button" class="link" data-clear="car">Заменить фото</button>
+                <button type="button" class="link" data-clear="car">Заменить машину</button>
             </div>
-        </section>
 
-        <section class="screen" data-screen="wheel" hidden>
-            <h1>Загрузи фото диска</h1>
-            <p class="hint">Один диск анфас, белый или нейтральный фон</p>
             <label class="dropzone" data-upload-zone="wheel">
                 <input type="file" accept="image/*" data-input="wheel" hidden>
                 <div class="dropzone-icon">⚙️</div>
-                <div class="dropzone-text">Нажми, чтобы выбрать фото</div>
-                <div class="dropzone-sub">JPG или PNG, до 10 MB</div>
+                <div class="dropzone-text">Фото диска</div>
+                <div class="dropzone-sub">Нажми, чтобы выбрать</div>
             </label>
             <div class="preview" data-preview="wheel" hidden>
                 <img alt="Превью диска" data-preview-img="wheel">
-                <button type="button" class="link" data-clear="wheel">Заменить фото</button>
+                <button type="button" class="link" data-clear="wheel">Заменить диск</button>
             </div>
         </section>
 

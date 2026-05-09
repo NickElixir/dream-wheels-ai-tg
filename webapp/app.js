@@ -20,9 +20,9 @@ function tgSupports(version) {
 const SUPPORTS_BACK_BUTTON = tgSupports("6.1");
 const SUPPORTS_HAPTIC = tgSupports("6.1");
 
-const SCREENS = ["car", "wheel", "result"];
+const SCREENS = ["upload", "result"];
 const state = {
-    screen: "car",
+    screen: "upload",
     files: { car: null, wheel: null },
     jobId: null,
 };
@@ -128,27 +128,20 @@ function showScreen(name) {
         el.hidden = s !== name;
     });
 
-    const stepIndex = SCREENS.indexOf(name) + 1;
     const indicator = document.querySelector("[data-step-indicator]");
-    indicator.textContent = name === "result" ? "Готово" : `Шаг ${stepIndex} из ${SCREENS.length}`;
+    indicator.textContent = name === "result" ? "Готово" : "Загрузка";
 
     refreshButtonsForScreen();
 }
 
 function refreshButtonsForScreen() {
-    if (state.screen === "car") {
+    if (state.screen === "upload") {
         setBackButton(null);
-        setMainButton({
-            text: "Дальше",
-            enabled: Boolean(state.files.car),
-            onClick: state.files.car ? () => showScreen("wheel") : null,
-        });
-    } else if (state.screen === "wheel") {
-        setBackButton(() => showScreen("car"));
+        const ready = Boolean(state.files.car?.blob && state.files.wheel?.blob);
         setMainButton({
             text: "Создать рендер",
-            enabled: Boolean(state.files.wheel),
-            onClick: state.files.wheel ? submitJob : null,
+            enabled: ready,
+            onClick: ready ? submitJob : null,
         });
     } else if (state.screen === "result") {
         setBackButton(() => resetFlow());
@@ -163,14 +156,14 @@ function refreshButtonsForScreen() {
 function resetFlow() {
     state.files = { car: null, wheel: null };
     state.jobId = null;
-    SCREENS.forEach((s) => {
+    ["car", "wheel"].forEach((s) => {
         const preview = document.querySelector(`[data-preview="${s}"]`);
         const zone = document.querySelector(`[data-upload-zone="${s}"]`);
         if (preview) preview.hidden = true;
         if (zone) zone.hidden = false;
     });
     document.querySelectorAll("input[data-input]").forEach((i) => (i.value = ""));
-    showScreen("car");
+    showScreen("upload");
 }
 
 /* ---------- File handling ---------- */
@@ -350,5 +343,5 @@ async function submitJob() {
 document.addEventListener("DOMContentLoaded", () => {
     initTelegram();
     attachFileHandlers();
-    showScreen("car");
+    showScreen("upload");
 });

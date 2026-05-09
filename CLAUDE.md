@@ -109,6 +109,39 @@ except Exception as e:
 
 Когда auto mode активен — действовать без переспросов по мелочам. Деструктивные/production-write действия — всё равно подтверждение.
 
+## Окружение для MCP / API ключей
+
+MCP-серверы (`render`, `supabase`, `upstash`) читают токены из env-переменных (`RENDER_API_KEY`, `SUPABASE_ACCESS_TOKEN`, `UPSTASH_API_KEY` и т.д.) при старте Claude Code.
+
+**macOS quirk**: GUI-приложения (включая VSCode) НЕ читают `~/.zshrc`. Если переменные объявлены в `~/.zshrc`, VSCode их не увидит, и MCP вернёт `unauthorized`.
+
+**Чтобы env подтянулся:**
+1. Закрыть VSCode
+2. Открыть Terminal.app / iTerm
+3. `cd <repo>` (zshrc автоматически прогрузится)
+4. `code .` — запуск VSCode из шелла, env наследуется
+5. Перезапустить Claude Code в новом VSCode
+
+Если команды `code` нет: в VSCode `Cmd+Shift+P` → **Shell Command: Install 'code' command in PATH**.
+
+Альтернатива: положить переменные в `~/.zprofile` — он читается login shell'ом и наследуется launchd, но влияет на все GUI-приложения системы.
+
+## Документация внешних сервисов
+
+Перед утверждениями про поведение внешних сервисов — сверяться с официальными docs (через WebFetch). Не полагаться на знание из обучения.
+
+| Сервис | Docs | Зачем |
+|--------|------|-------|
+| Render | https://render.com/docs | деплой, services, env vars, MCP |
+| Render REST API | https://api-docs.render.com/reference/introduction | программный доступ |
+| Render API Keys | https://dashboard.render.com/u/settings?add-api-key | создание `RENDER_API_KEY` |
+| Telegram Bot API | https://core.telegram.org/bots/api | `WebAppInfo`, file URLs, updates |
+| Telegram Mini Apps | https://core.telegram.org/bots/webapps | `tg.initData`, кнопки, lifecycle, **iOS WebView reload-on-file-picker quirk** |
+| Supabase | https://supabase.com/docs | Storage, Auth, Postgres |
+| Supabase Storage | https://supabase.com/docs/guides/storage | RLS, signed URLs, лимиты |
+| Upstash Redis | https://upstash.com/docs/redis | REST/RESP, лимиты Free tier |
+| Reve API | endpoint: `https://api.reve.com/v1/image/remix` | публичных docs нет — смотреть `src/reve_client.py` |
+
 ## Полезные ссылки
 
 - [CONTRIBUTING.md](CONTRIBUTING.md) — полный гайд по работе с кодом

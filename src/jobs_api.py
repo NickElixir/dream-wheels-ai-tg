@@ -11,7 +11,9 @@ import logging
 import uuid
 from typing import Annotated
 
+import httpx
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi.responses import Response
 from pydantic import BaseModel, field_validator
 
 from src import db, redis_client, storage
@@ -72,6 +74,16 @@ class JobStatusDetailedResponse(BaseModel):
     status: str
     result_url: str | None = None
     error: str | None = None
+
+
+def _download_filename(job_id: str, content_type: str | None) -> str:
+    ext = {
+        "image/jpeg": "jpg",
+        "image/jpg": "jpg",
+        "image/png": "png",
+        "image/webp": "webp",
+    }.get((content_type or "").split(";")[0].strip().lower(), "jpg")
+    return f"dream-wheels-{job_id}.{ext}"
 
 
 async def _ensure_user(telegram_user_id: int) -> int:
@@ -305,4 +317,49 @@ async def get_job_status_detailed(job_id: str):
         status=row["status"],
         result_url=row["output_image_url"],
         error=row["error_message"],
+    )
+
+
+@router.get("/{job_id}/download")
+async def download_job_result(job_id: str):
+    """Отдать результат как attachment для Telegram.WebApp.downloadFile."""
+    pool = db.get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            SELECT status, output_image_url
+            FROM jobs
+            WHERE id = $1::uuid
+            """,
+            job_id,
+        )
+
+    if not row:
+        raise HTTPException(status_code=404, detail="Job not found")
+    if row["status"] != "completed" or not row["output_image_url"]:
+        raise HTTPException(status_code=409, detail="Job result is not ready")
+
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            result_resp = await client.get(row["output_image_url"])
+    except httpx.HTTPError as exc:
+        logger.exception(f"❌ Result download proxy failed для job_id={job_id}: {exc}")
+        raise HTTPException(status_code=502, detail="Result fetch failed") from exc
+
+    if result_resp.status_code >= 400:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Result fetch failed: HTTP {result_resp.status_code}",
+        )
+
+    content_type = result_resp.headers.get("content-type", "image/jpeg")
+    filename = _download_filename(job_id, content_type)
+    return Response(
+        content=result_resp.content,
+        media_type=content_type,
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Access-Control-Allow-Origin": "https://web.telegram.org",
+            "Cache-Control": "private, max-age=300",
+        },
     )

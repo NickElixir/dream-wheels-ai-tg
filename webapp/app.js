@@ -19,6 +19,7 @@ function tgSupports(version) {
 
 const SUPPORTS_BACK_BUTTON = tgSupports("6.1");
 const SUPPORTS_HAPTIC = tgSupports("6.1");
+const SUPPORTS_DOWNLOAD_FILE = tgSupports("8.0") && typeof tg?.downloadFile === "function";
 
 const SCREENS = ["upload", "result"];
 const state = {
@@ -26,6 +27,8 @@ const state = {
     files: { car: null, wheel: null },
     jobId: null,
     resultUrl: null,
+    resultDownloadUrl: null,
+    resultFileName: null,
     downloading: false,
     submitting: false,
 };
@@ -167,6 +170,8 @@ function resetFlow() {
     state.files = { car: null, wheel: null };
     state.jobId = null;
     state.resultUrl = null;
+    state.resultDownloadUrl = null;
+    state.resultFileName = null;
     ["car", "wheel"].forEach((s) => {
         const preview = document.querySelector(`[data-preview="${s}"]`);
         const zone = document.querySelector(`[data-upload-zone="${s}"]`);
@@ -243,27 +248,51 @@ function setDownloadButtonState({ disabled = false, text = "Скачать из�
     downloadButton.textContent = text;
 }
 
-function openResultUrl(url) {
-    if (HAS_TG && typeof tg.openLink === "function") {
-        tg.openLink(url);
-        return;
-    }
-
-    window.open(url, "_blank", "noopener");
+function requestTelegramDownload(url, fileName) {
+    return new Promise((resolve, reject) => {
+        try {
+            tg.downloadFile({ url, file_name: fileName }, (accepted) => {
+                resolve(Boolean(accepted));
+            });
+        } catch (error) {
+            reject(error);
+        }
+    });
 }
 
 async function downloadResult() {
-    if (!state.resultUrl || state.downloading) return;
+    if (!state.resultDownloadUrl || state.downloading) return;
 
     state.downloading = true;
-    setDownloadButtonState({ disabled: true, text: "Открываем файл..." });
+    setDownloadButtonState({ disabled: true, text: "Запрашиваем скачивание..." });
 
     try {
-        openResultUrl(state.resultUrl);
-        haptic("success");
+        if (SUPPORTS_DOWNLOAD_FILE) {
+            const accepted = await requestTelegramDownload(
+                state.resultDownloadUrl,
+                state.resultFileName || "dream-wheels-result.jpg"
+            );
+            if (!accepted) {
+                setDownloadButtonState({ text: "Скачивание отменено" });
+                haptic("warning");
+            } else {
+                setDownloadButtonState({ text: "Скачивание началось" });
+                haptic("success");
+            }
+        } else {
+            const link = document.createElement("a");
+            link.href = state.resultDownloadUrl;
+            link.download = state.resultFileName || "dream-wheels-result.jpg";
+            link.rel = "noopener";
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            setDownloadButtonState({ text: "Скачивание началось" });
+            haptic("success");
+        }
     } catch (error) {
         console.error("[DW] download failed", error);
-        setDownloadButtonState({ disabled: false, text: "Не удалось открыть" });
+        setDownloadButtonState({ disabled: false, text: "Скачать не удалось" });
         setTimeout(() => {
             setDownloadButtonState();
         }, 1800);
@@ -272,8 +301,10 @@ async function downloadResult() {
         return;
     }
 
-    state.downloading = false;
-    setDownloadButtonState();
+    setTimeout(() => {
+        state.downloading = false;
+        setDownloadButtonState();
+    }, 1400);
 }
 
 function attachResultHandlers() {
@@ -445,13 +476,15 @@ async function submitJob() {
             statusBlock.hidden = true;
             if (resultImg && statusData.result_url) {
                 state.resultUrl = statusData.result_url;
+                state.resultDownloadUrl = `${API_BASE_URL}/jobs/${jobId}/download`;
+                state.resultFileName = `dream-wheels-${jobId}.jpg`;
                 resultImg.src = statusData.result_url;
                 resultImg.hidden = false;
             }
             const downloadButton = document.querySelector("[data-download-result]");
             if (downloadButton) {
                 setDownloadButtonState();
-                downloadButton.hidden = !state.resultUrl;
+                downloadButton.hidden = !state.resultDownloadUrl;
             }
             resultBlock.hidden = false;
             refreshButtonsForScreen();

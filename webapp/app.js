@@ -322,8 +322,25 @@ async function downloadResult() {
 }
 
 function buildTelegramShareUrl() {
-    const text = "Мой рендер в Dream Wheels AI";
+    const text = `Мой рендер в Dream Wheels AI\n${state.resultUrl}`;
     return `https://t.me/share/url?url=${encodeURIComponent(state.resultUrl)}&text=${encodeURIComponent(text)}`;
+}
+
+function openTelegramShareUrl() {
+    const shareUrl = buildTelegramShareUrl();
+
+    if (HAS_TG && typeof tg.openTelegramLink === "function") {
+        tg.openTelegramLink(shareUrl);
+        return true;
+    }
+
+    if (HAS_TG && typeof tg.openLink === "function") {
+        tg.openLink(shareUrl);
+        return true;
+    }
+
+    window.location.href = shareUrl;
+    return true;
 }
 
 async function copyResultUrl() {
@@ -346,8 +363,8 @@ async function shareResult() {
             url: state.resultUrl,
         };
 
-        if (HAS_TG && typeof tg.openTelegramLink === "function") {
-            tg.openTelegramLink(buildTelegramShareUrl());
+        if (HAS_TG) {
+            openTelegramShareUrl();
             setShareButtonState({ text: "Открываем Telegram" });
             haptic("success");
         } else if (navigator.share) {

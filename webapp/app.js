@@ -342,17 +342,17 @@ async function shareResult() {
     try {
         const shareData = {
             title: "Dream Wheels AI",
-            text: "Мой рендер в Dream Wheels AI",
+            text: `Мой рендер в Dream Wheels AI\n${state.resultUrl}`,
             url: state.resultUrl,
         };
 
-        if (navigator.share) {
-            await navigator.share(shareData);
-            setShareButtonState({ text: "Отправлено" });
-            haptic("success");
-        } else if (HAS_TG && typeof tg.openTelegramLink === "function") {
+        if (HAS_TG && typeof tg.openTelegramLink === "function") {
             tg.openTelegramLink(buildTelegramShareUrl());
             setShareButtonState({ text: "Открываем Telegram" });
+            haptic("success");
+        } else if (navigator.share) {
+            await navigator.share(shareData);
+            setShareButtonState({ text: "Отправлено" });
             haptic("success");
         } else {
             try {

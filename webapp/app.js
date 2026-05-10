@@ -30,6 +30,7 @@ const state = {
     resultDownloadUrl: null,
     resultFileName: null,
     downloading: false,
+    sharing: false,
     submitting: false,
 };
 
@@ -166,6 +167,7 @@ function refreshButtonsForScreen() {
 
 function resetFlow() {
     state.downloading = false;
+    state.sharing = false;
     state.submitting = false;
     state.files = { car: null, wheel: null };
     state.jobId = null;
@@ -182,6 +184,11 @@ function resetFlow() {
     if (downloadButton) {
         downloadButton.hidden = true;
         setDownloadButtonState();
+    }
+    const shareButton = document.querySelector("[data-share-result]");
+    if (shareButton) {
+        shareButton.hidden = true;
+        setShareButtonState();
     }
     document.querySelectorAll("input[data-input]").forEach((i) => (i.value = ""));
     showScreen("upload");
@@ -248,6 +255,13 @@ function setDownloadButtonState({ disabled = false, text = "Скачать из�
     downloadButton.textContent = text;
 }
 
+function setShareButtonState({ disabled = false, text = "Поделиться" } = {}) {
+    const shareButton = document.querySelector("[data-share-result]");
+    if (!shareButton) return;
+    shareButton.disabled = disabled;
+    shareButton.textContent = text;
+}
+
 function requestTelegramDownload(url, fileName) {
     return new Promise((resolve, reject) => {
         try {
@@ -307,12 +321,80 @@ async function downloadResult() {
     }, 1400);
 }
 
+function buildTelegramShareUrl() {
+    const text = "Мой рендер в Dream Wheels AI";
+    return `https://t.me/share/url?url=${encodeURIComponent(state.resultUrl)}&text=${encodeURIComponent(text)}`;
+}
+
+async function copyResultUrl() {
+    if (!navigator.clipboard?.writeText) {
+        throw new Error("Clipboard API unavailable");
+    }
+    await navigator.clipboard.writeText(state.resultUrl);
+}
+
+async function shareResult() {
+    if (!state.resultUrl || state.sharing) return;
+
+    state.sharing = true;
+    setShareButtonState({ disabled: true, text: "Готовим..." });
+
+    try {
+        const shareData = {
+            title: "Dream Wheels AI",
+            text: "Мой рендер в Dream Wheels AI",
+            url: state.resultUrl,
+        };
+
+        if (navigator.share) {
+            await navigator.share(shareData);
+            setShareButtonState({ text: "Отправлено" });
+            haptic("success");
+        } else if (HAS_TG && typeof tg.openTelegramLink === "function") {
+            tg.openTelegramLink(buildTelegramShareUrl());
+            setShareButtonState({ text: "Открываем Telegram" });
+            haptic("success");
+        } else {
+            try {
+                await copyResultUrl();
+                setShareButtonState({ text: "Ссылка скопирована" });
+            } catch (_) {
+                window.open(buildTelegramShareUrl(), "_blank", "noopener");
+                setShareButtonState({ text: "Открываем ссылку" });
+            }
+            haptic("success");
+        }
+    } catch (error) {
+        if (error?.name === "AbortError") {
+            setShareButtonState({ text: "Отменено" });
+            haptic("warning");
+        } else {
+            console.error("[DW] share failed", error);
+            setShareButtonState({ disabled: false, text: "Не удалось" });
+            haptic("warning");
+        }
+    }
+
+    setTimeout(() => {
+        state.sharing = false;
+        setShareButtonState();
+    }, 1600);
+}
+
 function attachResultHandlers() {
     const downloadButton = document.querySelector("[data-download-result]");
-    if (!downloadButton) return;
-    downloadButton.addEventListener("click", () => {
-        downloadResult();
-    });
+    if (downloadButton) {
+        downloadButton.addEventListener("click", () => {
+            downloadResult();
+        });
+    }
+
+    const shareButton = document.querySelector("[data-share-result]");
+    if (shareButton) {
+        shareButton.addEventListener("click", () => {
+            shareResult();
+        });
+    }
 }
 
 /* ---------- Submit ---------- */
@@ -485,6 +567,11 @@ async function submitJob() {
             if (downloadButton) {
                 setDownloadButtonState();
                 downloadButton.hidden = !state.resultDownloadUrl;
+            }
+            const shareButton = document.querySelector("[data-share-result]");
+            if (shareButton) {
+                setShareButtonState();
+                shareButton.hidden = !state.resultUrl;
             }
             resultBlock.hidden = false;
             refreshButtonsForScreen();

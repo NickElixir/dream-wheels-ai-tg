@@ -12,6 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from src import db, jobs_api, redis_client, storage
 from src.config import PUBLIC_BASE_URL, WEBAPP_URL
 from src.reve_client import fetch_image_base64, remix_wheels_on_car
+from src.rim import extract_rim_description
 
 logging.basicConfig(
     level=logging.INFO,
@@ -133,7 +134,9 @@ async def process_jobs_loop():
                 )
 
             car_b64, wheel_b64 = await _load_inputs_as_b64(job_data)
-            img_bytes = await remix_wheels_on_car(car_b64, wheel_b64)
+            rim = extract_rim_description(wheel_b64)
+            logger.info(f"🎯 Rim job_id={job_id}: {rim.model_dump()}")
+            img_bytes = await remix_wheels_on_car(car_b64, wheel_b64, rim=rim)
             output_url = await _save_render_output(job_id, job_data, img_bytes)
 
             async with pool.acquire() as conn:

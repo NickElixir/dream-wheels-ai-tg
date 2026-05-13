@@ -32,13 +32,55 @@ SESSION_TTL_SEC = 600
 POLL_INTERVAL_SEC = 3
 POLL_MAX_RETRIES = 60  # 60 * 3 = 3 минуты ожидания результата
 
+MESSAGES = {
+    "en": {
+        "open_app": "🚗 Open Dream Wheels",
+        "start": (
+            "Hi! Tap the button below to open the Mini App, "
+            "or send a car photo directly in this chat."
+        ),
+        "car_received": "Car photo received! 🚗\nNow send a wheel photo.",
+        "creating_job": "Creating job... ⏳",
+        "api_error": "❌ API server error.",
+        "backend_unavailable": "❌ Backend is unavailable.",
+        "queued": "Job queued! Waiting for the result... 🎨",
+        "done_caption": "Done! Your AI render is ready.",
+        "processing_failed": "❌ Processing failed.",
+        "timeout": "❌ Timed out while waiting for the result.",
+    },
+    "ru": {
+        "open_app": "🚗 Открыть Dream Wheels",
+        "start": (
+            "Привет! Жми кнопку ниже, чтобы открыть Mini App, или отправь фото машины прямо в чат."
+        ),
+        "car_received": "Фото авто получено! 🚗\nТеперь отправь фото диска.",
+        "creating_job": "Создаю задачу... ⏳",
+        "api_error": "❌ Ошибка сервера API.",
+        "backend_unavailable": "❌ Бэкенд недоступен.",
+        "queued": "Задача в очереди! Ожидаем результат... 🎨",
+        "done_caption": "Готово! Ваш AI-рендер готов.",
+        "processing_failed": "❌ Ошибка при обработке.",
+        "timeout": "❌ Превышено время ожидания.",
+    },
+}
+
+
+def _locale(update: Update) -> str:
+    user = update.effective_user
+    language_code = ((user.language_code if user else "") or "").lower()
+    return "ru" if language_code.startswith("ru") else "en"
+
+
+def _t(update: Update, key: str) -> str:
+    return MESSAGES[_locale(update)][key]
+
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = InlineKeyboardMarkup(
-        [[InlineKeyboardButton("🚗 Открыть Dream Wheels", web_app=WebAppInfo(url=WEBAPP_URL))]]
+        [[InlineKeyboardButton(_t(update, "open_app"), web_app=WebAppInfo(url=WEBAPP_URL))]]
     )
     await update.message.reply_text(
-        "Привет! Жми кнопку ниже, чтобы открыть Mini App, " "или отправь фото машины прямо в чат.",
+        _t(update, "start"),
         reply_markup=keyboard,
     )
 
@@ -56,29 +98,29 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if not cached_car_url:
         await rds.setex(session_key, SESSION_TTL_SEC, current_photo_url)
-        await update.message.reply_text("Фото авто получено! 🚗\nТеперь отправь фото диска.")
+        await update.message.reply_text(_t(update, "car_received"))
         return
 
     wheel_url = current_photo_url
     await rds.delete(session_key)
 
-    status_msg = await update.message.reply_text("Создаю задачу... ⏳")
+    status_msg = await update.message.reply_text(_t(update, "creating_job"))
 
     async with aiohttp.ClientSession() as session:
         payload = {"telegram_user_id": user_id, "car_url": cached_car_url, "wheel_url": wheel_url}
         try:
             async with session.post(f"{API_BASE_URL}/jobs", json=payload) as resp:
                 if resp.status != 200:
-                    await status_msg.edit_text("❌ Ошибка сервера API.")
+                    await status_msg.edit_text(_t(update, "api_error"))
                     return
                 job_data = await resp.json()
                 job_id = job_data["job_id"]
         except Exception as e:
             logger.exception(f"Связь с API потеряна для user_id={user_id}: {e}")
-            await status_msg.edit_text("❌ Бэкенд недоступен.")
+            await status_msg.edit_text(_t(update, "backend_unavailable"))
             return
 
-    await status_msg.edit_text("Задача в очереди! Ожидаем результат... 🎨")
+    await status_msg.edit_text(_t(update, "queued"))
     await poll_job_status(update, status_msg, job_id)
 
 
@@ -95,20 +137,20 @@ async def poll_job_status(update: Update, status_msg, job_id: str):
                         if status == "completed":
                             await update.message.reply_photo(
                                 photo=data["output_image_url"],
-                                caption="Готово! (Имитация работы ИИ)",
+                                caption=_t(update, "done_caption"),
                             )
                             await status_msg.delete()
                             return
 
                         elif status == "failed":
-                            await status_msg.edit_text("❌ Ошибка при обработке.")
+                            await status_msg.edit_text(_t(update, "processing_failed"))
                             return
 
             except Exception as e:
                 logger.exception(f"Ошибка опроса job_id={job_id}: {e}")
                 continue
 
-    await status_msg.edit_text("❌ Превышено время ожидания.")
+    await status_msg.edit_text(_t(update, "timeout"))
 
 
 def main():

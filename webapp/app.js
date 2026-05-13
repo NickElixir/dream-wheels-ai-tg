@@ -21,6 +21,161 @@ const SUPPORTS_BACK_BUTTON = tgSupports("6.1");
 const SUPPORTS_HAPTIC = tgSupports("6.1");
 const SUPPORTS_DOWNLOAD_FILE = tgSupports("8.0") && typeof tg?.downloadFile === "function";
 
+const I18N = {
+    en: {
+        steps: {
+            upload: "Upload",
+            result: "Done",
+        },
+        upload: {
+            title: "Upload your car and wheel photos",
+            hint: "Full side view of the car, front view of the wheel. JPG or PNG, up to 10 MB.",
+            carPhoto: "Car photo",
+            wheelPhoto: "Wheel photo",
+            choose: "Tap to choose",
+            replaceCar: "Replace car",
+            replaceWheel: "Replace wheel",
+            carPreviewAlt: "Car preview",
+            wheelPreviewAlt: "Wheel preview",
+        },
+        status: {
+            creating: "Creating job...",
+            startingServer: "Starting server...",
+            coldStart: "First launch can take up to 40 seconds",
+            uploading: "Uploading files...",
+            upTo90: "This can take up to 90 seconds",
+            generating: "Generating render...",
+        },
+        result: {
+            imageAlt: "AI render",
+            title: "Done!",
+            caption: "Your render with new wheels is ready.",
+        },
+        actions: {
+            createRender: "Create render",
+            createAnother: "Create another",
+            download: "Download",
+            downloadImage: "Download image",
+            requestingDownload: "Requesting download...",
+            downloadCanceled: "Download canceled",
+            downloadStarted: "Download started",
+            downloadFailed: "Download failed",
+            share: "Share",
+            preparing: "Preparing...",
+            openingTelegram: "Opening Telegram",
+            sent: "Sent",
+            linkCopied: "Link copied",
+            openingLink: "Opening link",
+            canceled: "Canceled",
+            failed: "Failed",
+        },
+        errors: {
+            generic: "Something went wrong",
+            missingFiles: "Files are missing. Go back and upload both photos.",
+            generationFailed: "Generation failed",
+            timeout: "Timed out after 110 seconds",
+            requestFailed: "Request failed. Please try again.",
+        },
+        share: {
+            text: "My Dream Wheels AI render",
+        },
+        footer: {
+            notTelegram: "Not in Telegram",
+        },
+    },
+    ru: {
+        steps: {
+            upload: "Загрузка",
+            result: "Готово",
+        },
+        upload: {
+            title: "Загрузи фото машины и диска",
+            hint: "Машина целиком сбоку, диск анфас. JPG или PNG, до 10 MB.",
+            carPhoto: "Фото машины",
+            wheelPhoto: "Фото диска",
+            choose: "Нажми, чтобы выбрать",
+            replaceCar: "Заменить машину",
+            replaceWheel: "Заменить диск",
+            carPreviewAlt: "Превью машины",
+            wheelPreviewAlt: "Превью диска",
+        },
+        status: {
+            creating: "Создаём задачу...",
+            startingServer: "Запускаем сервер...",
+            coldStart: "Первый запуск может занять до 40 секунд",
+            uploading: "Загружаем файлы...",
+            upTo90: "Это может занять до 90 секунд",
+            generating: "Генерируем рендер...",
+        },
+        result: {
+            imageAlt: "AI рендер",
+            title: "Готово!",
+            caption: "Ваш рендер с новыми дисками готов.",
+        },
+        actions: {
+            createRender: "Создать рендер",
+            createAnother: "Сделать ещё один",
+            download: "Скачать",
+            downloadImage: "Скачать изображение",
+            requestingDownload: "Запрашиваем скачивание...",
+            downloadCanceled: "Скачивание отменено",
+            downloadStarted: "Скачивание началось",
+            downloadFailed: "Скачать не удалось",
+            share: "Поделиться",
+            preparing: "Готовим...",
+            openingTelegram: "Открываем Telegram",
+            sent: "Отправлено",
+            linkCopied: "Ссылка скопирована",
+            openingLink: "Открываем ссылку",
+            canceled: "Отменено",
+            failed: "Не удалось",
+        },
+        errors: {
+            generic: "Что-то пошло не так",
+            missingFiles: "Файлы не выбраны — вернитесь и загрузите оба фото",
+            generationFailed: "Ошибка генерации",
+            timeout: "Превышено время ожидания (>110 с)",
+            requestFailed: "Запрос не удался. Попробуйте ещё раз.",
+        },
+        share: {
+            text: "Мой рендер в Dream Wheels AI",
+        },
+        footer: {
+            notTelegram: "Не в Telegram",
+        },
+    },
+};
+
+function detectLocale() {
+    const telegramLanguage = tg?.initDataUnsafe?.user?.language_code;
+    const browserLanguage = navigator.language;
+    const language = (telegramLanguage || browserLanguage || "en").toLowerCase();
+    return language.startsWith("ru") ? "ru" : "en";
+}
+
+const locale = detectLocale();
+
+function t(key) {
+    return key.split(".").reduce((value, part) => value?.[part], I18N[locale]) ?? key;
+}
+
+function applyTranslations() {
+    document.documentElement.lang = locale;
+    document.querySelectorAll("[data-i18n]").forEach((el) => {
+        el.textContent = t(el.dataset.i18n);
+    });
+    document.querySelectorAll("[data-i18n-alt]").forEach((el) => {
+        el.alt = t(el.dataset.i18nAlt);
+    });
+}
+
+function localizeErrorMessage(message) {
+    if (locale === "en" && /[А-Яа-яЁё]/.test(message || "")) {
+        return t("errors.requestFailed");
+    }
+    return message || t("errors.generic");
+}
+
 const SCREENS = ["upload", "result"];
 const state = {
     screen: "upload",
@@ -136,7 +291,7 @@ function showScreen(name) {
     });
 
     const indicator = document.querySelector("[data-step-indicator]");
-    indicator.textContent = name === "result" ? "Готово" : "Загрузка";
+    indicator.textContent = name === "result" ? t("steps.result") : t("steps.upload");
 
     refreshButtonsForScreen();
 }
@@ -146,7 +301,7 @@ function refreshButtonsForScreen() {
         setBackButton(null);
         const ready = Boolean(state.files.car?.blob && state.files.wheel?.blob);
         setMainButton({
-            text: "Создать рендер",
+            text: t("actions.createRender"),
             enabled: ready && !state.submitting,
             onClick: ready && !state.submitting ? submitJob : null,
         });
@@ -157,7 +312,7 @@ function refreshButtonsForScreen() {
         } else {
             setBackButton(() => resetFlow());
             setMainButton({
-                text: "Сделать ещё один",
+                text: t("actions.createAnother"),
                 enabled: true,
                 onClick: resetFlow,
             });
@@ -248,14 +403,14 @@ function handleFileSelected(kind, file) {
     haptic("light");
 }
 
-function setDownloadButtonState({ disabled = false, text = "Скачать изображение" } = {}) {
+function setDownloadButtonState({ disabled = false, text = t("actions.downloadImage") } = {}) {
     const downloadButton = document.querySelector("[data-download-result]");
     if (!downloadButton) return;
     downloadButton.disabled = disabled;
     downloadButton.textContent = text;
 }
 
-function setShareButtonState({ disabled = false, text = "Поделиться" } = {}) {
+function setShareButtonState({ disabled = false, text = t("actions.share") } = {}) {
     const shareButton = document.querySelector("[data-share-result]");
     if (!shareButton) return;
     shareButton.disabled = disabled;
@@ -278,7 +433,7 @@ async function downloadResult() {
     if (!state.resultDownloadUrl || state.downloading) return;
 
     state.downloading = true;
-    setDownloadButtonState({ disabled: true, text: "Запрашиваем скачивание..." });
+    setDownloadButtonState({ disabled: true, text: t("actions.requestingDownload") });
 
     try {
         if (SUPPORTS_DOWNLOAD_FILE) {
@@ -287,10 +442,10 @@ async function downloadResult() {
                 state.resultFileName || "dream-wheels-result.jpg"
             );
             if (!accepted) {
-                setDownloadButtonState({ text: "Скачивание отменено" });
+                setDownloadButtonState({ text: t("actions.downloadCanceled") });
                 haptic("warning");
             } else {
-                setDownloadButtonState({ text: "Скачивание началось" });
+                setDownloadButtonState({ text: t("actions.downloadStarted") });
                 haptic("success");
             }
         } else {
@@ -301,12 +456,12 @@ async function downloadResult() {
             document.body.appendChild(link);
             link.click();
             link.remove();
-            setDownloadButtonState({ text: "Скачивание началось" });
+            setDownloadButtonState({ text: t("actions.downloadStarted") });
             haptic("success");
         }
     } catch (error) {
         console.error("[DW] download failed", error);
-        setDownloadButtonState({ disabled: false, text: "Скачать не удалось" });
+        setDownloadButtonState({ disabled: false, text: t("actions.downloadFailed") });
         setTimeout(() => {
             setDownloadButtonState();
         }, 1800);
@@ -322,7 +477,7 @@ async function downloadResult() {
 }
 
 function buildTelegramShareUrl() {
-    const text = `Мой рендер в Dream Wheels AI\n${state.resultUrl}`;
+    const text = `${t("share.text")}\n${state.resultUrl}`;
     return `https://t.me/share/url?url=${encodeURIComponent(state.resultUrl)}&text=${encodeURIComponent(text)}`;
 }
 
@@ -354,40 +509,40 @@ async function shareResult() {
     if (!state.resultUrl || state.sharing) return;
 
     state.sharing = true;
-    setShareButtonState({ disabled: true, text: "Готовим..." });
+    setShareButtonState({ disabled: true, text: t("actions.preparing") });
 
     try {
         const shareData = {
             title: "Dream Wheels AI",
-            text: `Мой рендер в Dream Wheels AI\n${state.resultUrl}`,
+            text: `${t("share.text")}\n${state.resultUrl}`,
             url: state.resultUrl,
         };
 
         if (HAS_TG) {
             openTelegramShareUrl();
-            setShareButtonState({ text: "Открываем Telegram" });
+            setShareButtonState({ text: t("actions.openingTelegram") });
             haptic("success");
         } else if (navigator.share) {
             await navigator.share(shareData);
-            setShareButtonState({ text: "Отправлено" });
+            setShareButtonState({ text: t("actions.sent") });
             haptic("success");
         } else {
             try {
                 await copyResultUrl();
-                setShareButtonState({ text: "Ссылка скопирована" });
+                setShareButtonState({ text: t("actions.linkCopied") });
             } catch (_) {
                 window.open(buildTelegramShareUrl(), "_blank", "noopener");
-                setShareButtonState({ text: "Открываем ссылку" });
+                setShareButtonState({ text: t("actions.openingLink") });
             }
             haptic("success");
         }
     } catch (error) {
         if (error?.name === "AbortError") {
-            setShareButtonState({ text: "Отменено" });
+            setShareButtonState({ text: t("actions.canceled") });
             haptic("warning");
         } else {
             console.error("[DW] share failed", error);
-            setShareButtonState({ disabled: false, text: "Не удалось" });
+            setShareButtonState({ disabled: false, text: t("actions.failed") });
             haptic("warning");
         }
     }
@@ -460,8 +615,8 @@ async function submitJob() {
     statusBlock.hidden = false;
     resultBlock.hidden = true;
     errorBlock.hidden = true;
-    statusText.textContent = "Запускаем сервер…";
-    statusSub.textContent = "Первый запуск может занять до 40 секунд";
+    statusText.textContent = t("status.startingServer");
+    statusSub.textContent = t("status.coldStart");
     if (statusDebug) {
         statusDebug.hidden = true;
         statusDebug.textContent = "";
@@ -472,7 +627,7 @@ async function submitJob() {
         statusBlock.hidden = true;
         resultBlock.hidden = true;
         errorBlock.hidden = false;
-        if (errorText) errorText.textContent = msg;
+        if (errorText) errorText.textContent = localizeErrorMessage(msg);
         refreshButtonsForScreen();
         pushDebug("showError", msg);
         haptic("error");
@@ -491,8 +646,8 @@ async function submitJob() {
         // ignore — if health fails, upload will fail too and show proper error
     }
 
-    statusText.textContent = "Загружаем файлы…";
-    statusSub.textContent = "Это может занять до 90 секунд";
+    statusText.textContent = t("status.uploading");
+    statusSub.textContent = t("status.upTo90");
 
     console.log("[DW] submit state:", {
         carName: state.files.car?.name,
@@ -517,7 +672,7 @@ async function submitJob() {
     );
 
     if (!state.files.car?.blob || !state.files.wheel?.blob) {
-        showError("Файлы не выбраны — вернитесь и загрузите оба фото");
+        showError(t("errors.missingFiles"));
         return;
     }
 
@@ -553,7 +708,7 @@ async function submitJob() {
         return;
     }
 
-    statusText.textContent = "Генерируем рендер…";
+    statusText.textContent = t("status.generating");
     pushDebug("poll:start");
 
     const deadline = Date.now() + POLL_TIMEOUT_MS;
@@ -597,17 +752,18 @@ async function submitJob() {
             return;
         }
         if (statusData.status === "failed") {
-            showError(statusData.error || "Ошибка генерации");
+            showError(statusData.error || t("errors.generationFailed"));
             return;
         }
     }
     pushDebug("poll:timeout");
-    showError("Превышено время ожидания (>110 с)");
+    showError(t("errors.timeout"));
 }
 
 /* ---------- Boot ---------- */
 
 document.addEventListener("DOMContentLoaded", () => {
+    applyTranslations();
     initTelegram();
     attachFileHandlers();
     attachResultHandlers();

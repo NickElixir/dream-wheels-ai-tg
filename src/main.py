@@ -9,7 +9,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from src import db, jobs_api, redis_client, storage
+from src import db, jobs_api, payments_api, redis_client, storage
 from src.config import PUBLIC_BASE_URL, WEBAPP_URL
 from src.reve_client import fetch_image_base64, remix_wheels_on_car
 
@@ -62,6 +62,7 @@ app.add_middleware(
 os.makedirs("static", exist_ok=True)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 app.include_router(jobs_api.router)
+app.include_router(payments_api.router)
 
 
 async def _load_inputs_as_b64(job_data: dict) -> tuple[str, str]:
@@ -150,8 +151,7 @@ async def process_jobs_loop():
             if job_id:
                 async with pool.acquire() as conn:
                     await conn.execute(
-                        "UPDATE jobs SET status = 'failed', error_message = $1 "
-                        "WHERE id = $2::uuid",
+                        "UPDATE jobs SET status = 'failed', error_message = $1 WHERE id = $2::uuid",
                         str(e),
                         job_id,
                     )

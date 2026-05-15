@@ -103,6 +103,7 @@ except Exception as e:
 - **OS**: macOS Apple Silicon M1, Homebrew в `/opt/homebrew`, arm64 native
 - **Stack**: Python 3.12, FastAPI, asyncpg, redis-py, python-telegram-bot. Render hosting. Supabase Postgres + Upstash Redis
 - **Languages**: код на Python, общение по-русски, code comments на русском допустимы
+- **Presentation materials**: всегда на английском языке, даже если обсуждение в чате идёт на русском
 - **Идиомы**: type hints всегда, Pydantic для валидации, async везде где I/O
 
 ## Auto mode

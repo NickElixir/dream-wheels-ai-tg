@@ -40,3 +40,16 @@ def test_create_job_rejects_non_telegram_url():
         },
     )
     assert r.status_code == 422
+
+
+def test_preorder_rejects_invalid_email():
+    """Email валидируется до флага PAYMENTS_ENABLED и похода в БД."""
+    r = client.post("/payments/preorders", json={"email": "not-an-email"})
+    assert r.status_code == 422
+
+
+def test_preorder_returns_disabled_when_payments_off():
+    """По умолчанию платежи выключены, чтобы случайно не открыть прием денег."""
+    r = client.post("/payments/preorders", json={"email": "user@example.com"})
+    assert r.status_code == 503
+    assert r.json()["detail"] == "payments disabled"

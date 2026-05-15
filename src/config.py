@@ -27,3 +27,15 @@ PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "https://dream-wheels-ai-tg.onren
 )
 API_BASE_URL = os.getenv("API_BASE_URL", "http://127.0.0.1:10000").rstrip("/")
 WEBAPP_URL = os.getenv("WEBAPP_URL", "https://dream-wheels-ai-webapp.vercel.app").rstrip("/")
+
+# Payments (Robokassa)
+ROBOKASSA_PAYMENT_URL = os.getenv(
+    "ROBOKASSA_PAYMENT_URL",
+    "https://auth.robokassa.ru/Merchant/Index.aspx",
+).rstrip("/")
+ROBOKASSA_MERCHANT_LOGIN = os.getenv("ROBOKASSA_MERCHANT_LOGIN")
+ROBOKASSA_PASSWORD1 = os.getenv("ROBOKASSA_PASSWORD1")
+ROBOKASSA_PASSWORD2 = os.getenv("ROBOKASSA_PASSWORD2")
+ROBOKASSA_IS_TEST = os.getenv("ROBOKASSA_IS_TEST", "true").lower() == "true"
+PREORDER_AMOUNT_RUB = os.getenv("PREORDER_AMOUNT_RUB", "990.00")
+PAYMENTS_ENABLED = os.getenv("PAYMENTS_ENABLED", "false").lower() == "true"

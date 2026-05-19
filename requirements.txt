@@ -14,3 +14,7 @@ python-telegram-bot[job-queue]==21.0.1
 numpy==1.26.4
 Pillow==10.3.0
 onnxruntime==1.17.3
+
+# Local fal.ai masked inpainting evaluation runner
+# (scripts/fal_inpaint_eval.py; paid calls require --execute).
+fal-client==1.0.0

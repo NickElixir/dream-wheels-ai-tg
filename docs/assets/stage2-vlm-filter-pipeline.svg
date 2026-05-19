@@ -1,0 +1,150 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080" role="img" aria-labelledby="title desc">
+  <title id="title">Stage 2 VLM wheel-mask filtering pipeline</title>
+  <desc id="desc">Presentation diagram for the Dream Wheels Stage 2 VLM filter. It shows the pipeline, a cover.jpg example with candidate masks, VLM keep and reject decisions, and the final selected wheel mask.</desc>
+  <defs>
+    <style>
+      .bg { fill: #f7f8fb; }
+      .ink { fill: #16202a; }
+      .muted { fill: #5b6674; }
+      .soft { fill: #eef2f7; }
+      .card { fill: #ffffff; stroke: #d7dde7; stroke-width: 2; }
+      .blue-card { fill: #ffffff; stroke: #2f6fed; stroke-width: 3; }
+      .green-card { fill: #f1fbf5; stroke: #38a169; stroke-width: 2.5; }
+      .red-card { fill: #fff5f4; stroke: #e05243; stroke-width: 2.5; }
+      .dark-pill { fill: #16202a; }
+      .blue { fill: #2f6fed; }
+      .green { fill: #38a169; }
+      .red { fill: #e05243; }
+      .amber { fill: #f2a541; }
+      .line { stroke: #6d7786; stroke-width: 4; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+      .line-blue { stroke: #2f6fed; stroke-width: 5; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+      .line-green { stroke: #38a169; stroke-width: 5; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+      .line-red { stroke: #e05243; stroke-width: 5; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+      .title { font-family: Inter, Arial, sans-serif; font-size: 52px; font-weight: 780; }
+      .subtitle { font-family: Inter, Arial, sans-serif; font-size: 26px; font-weight: 500; }
+      .section { font-family: Inter, Arial, sans-serif; font-size: 28px; font-weight: 760; }
+      .label { font-family: Inter, Arial, sans-serif; font-size: 25px; font-weight: 760; }
+      .small { font-family: Inter, Arial, sans-serif; font-size: 20px; font-weight: 520; }
+      .tiny { font-family: Inter, Arial, sans-serif; font-size: 17px; font-weight: 540; }
+      .badge { font-family: Inter, Arial, sans-serif; font-size: 18px; font-weight: 760; fill: #ffffff; }
+      .mono { font-family: "SFMono-Regular", Consolas, monospace; font-size: 22px; font-weight: 650; }
+      .white { fill: #ffffff; }
+    </style>
+    <marker id="arrow" markerWidth="16" markerHeight="16" refX="12" refY="8" orient="auto" markerUnits="strokeWidth">
+      <path d="M2,2 L14,8 L2,14 Z" fill="#6d7786"/>
+    </marker>
+    <marker id="arrow-blue" markerWidth="16" markerHeight="16" refX="12" refY="8" orient="auto" markerUnits="strokeWidth">
+      <path d="M2,2 L14,8 L2,14 Z" fill="#2f6fed"/>
+    </marker>
+    <marker id="arrow-green" markerWidth="16" markerHeight="16" refX="12" refY="8" orient="auto" markerUnits="strokeWidth">
+      <path d="M2,2 L14,8 L2,14 Z" fill="#38a169"/>
+    </marker>
+    <marker id="arrow-red" markerWidth="16" markerHeight="16" refX="12" refY="8" orient="auto" markerUnits="strokeWidth">
+      <path d="M2,2 L14,8 L2,14 Z" fill="#e05243"/>
+    </marker>
+    <filter id="shadow" x="-8%" y="-10%" width="116%" height="130%">
+      <feDropShadow dx="0" dy="10" stdDeviation="12" flood-color="#16202a" flood-opacity="0.10"/>
+    </filter>
+    <clipPath id="img-original">
+      <rect x="112" y="520" width="350" height="197" rx="12"/>
+    </clipPath>
+    <clipPath id="img-overlay">
+      <rect x="518" y="520" width="350" height="241" rx="12"/>
+    </clipPath>
+    <clipPath id="img-mask">
+      <rect x="924" y="520" width="350" height="197" rx="12"/>
+    </clipPath>
+  </defs>
+
+  <rect class="bg" width="1920" height="1080"/>
+  <rect x="0" y="0" width="1920" height="1080" fill="#ffffff" opacity="0.48"/>
+
+  <text x="76" y="94" class="title ink">Stage 2 VLM Wheel-Mask Filter</text>
+  <text x="76" y="136" class="subtitle muted">Keep real wheels, reject reflections and artifacts before the final render.</text>
+
+  <g filter="url(#shadow)">
+    <rect x="76" y="188" width="246" height="132" rx="14" class="card"/>
+    <circle cx="122" cy="238" r="24" class="blue"/>
+    <path d="M108 240 L119 251 L138 224" stroke="#fff" stroke-width="7" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="160" y="236" class="label ink">Input photo</text>
+    <text x="110" y="282" class="small muted">cover.jpg</text>
+
+    <rect x="390" y="188" width="274" height="132" rx="14" class="card"/>
+    <rect x="424" y="217" width="46" height="46" rx="10" class="blue"/>
+    <circle cx="447" cy="240" r="13" fill="#ffffff"/>
+    <text x="492" y="236" class="label ink">Roboflow</text>
+    <text x="424" y="282" class="small muted">YOLO wheel candidates</text>
+
+    <rect x="732" y="188" width="270" height="132" rx="14" class="card"/>
+    <circle cx="778" cy="240" r="24" class="amber"/>
+    <path d="M765 240 H791 M778 227 V253" stroke="#fff" stroke-width="7" stroke-linecap="round"/>
+    <text x="820" y="236" class="label ink">Cheap filters</text>
+    <text x="766" y="282" class="small muted">class + min area</text>
+
+    <rect x="1070" y="188" width="284" height="132" rx="14" class="blue-card"/>
+    <circle cx="1116" cy="240" r="24" class="blue"/>
+    <path d="M1103 234 C1110 222 1129 222 1136 234 C1143 246 1134 257 1119 260 C1108 263 1098 256 1097 245" stroke="#fff" stroke-width="6" fill="none" stroke-linecap="round"/>
+    <text x="1158" y="236" class="label ink">Qwen3-VL-30B</text>
+    <text x="1104" y="282" class="small muted">overlay + metadata</text>
+
+    <rect x="1422" y="188" width="316" height="132" rx="14" class="green-card"/>
+    <circle cx="1468" cy="240" r="24" class="green"/>
+    <path d="M1455 240 L1465 251 L1483 226" stroke="#fff" stroke-width="7" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="1510" y="236" class="label ink">Final wheel mask</text>
+    <text x="1456" y="282" class="small muted">selected candidates only</text>
+  </g>
+
+  <path d="M330 254 H370" class="line" marker-end="url(#arrow)"/>
+  <path d="M672 254 H712" class="line" marker-end="url(#arrow)"/>
+  <path d="M1010 254 H1050" class="line-blue" marker-end="url(#arrow-blue)"/>
+  <path d="M1362 254 H1402" class="line-green" marker-end="url(#arrow-green)"/>
+
+  <g filter="url(#shadow)">
+    <rect x="76" y="392" width="1254" height="566" rx="18" class="card"/>
+    <text x="112" y="454" class="section ink">cover.jpg example with masks</text>
+    <text x="112" y="489" class="small muted">The VLM sees the original image, labeled candidate overlay, and candidate metadata.</text>
+
+    <rect x="112" y="520" width="350" height="197" rx="12" class="soft"/>
+    <image href="vlm-mask-filter-experiment/cover-original.jpg" x="112" y="520" width="350" height="197" preserveAspectRatio="xMidYMid slice" clip-path="url(#img-original)"/>
+    <rect x="112" y="520" width="350" height="197" rx="12" fill="none" stroke="#d7dde7" stroke-width="2"/>
+    <text x="112" y="752" class="label ink">Original</text>
+    <text x="112" y="782" class="small muted">user-submitted car photo</text>
+
+    <rect x="518" y="520" width="350" height="241" rx="12" class="soft"/>
+    <image href="vlm-mask-filter-experiment/cover-qwen3-30b-candidates-overlay.png" x="518" y="520" width="350" height="241" preserveAspectRatio="xMidYMid slice" clip-path="url(#img-overlay)"/>
+    <rect x="518" y="520" width="350" height="241" rx="12" fill="none" stroke="#d7dde7" stroke-width="2"/>
+    <text x="518" y="796" class="label ink">Candidate overlay</text>
+    <text x="518" y="826" class="small muted">IDs 0 and 3 are real wheels</text>
+
+    <rect x="924" y="520" width="350" height="197" rx="12" class="soft"/>
+    <image href="vlm-mask-filter-experiment/cover-qwen3-30b-final-mask.png" x="924" y="520" width="350" height="197" preserveAspectRatio="xMidYMid slice" clip-path="url(#img-mask)"/>
+    <rect x="924" y="520" width="350" height="197" rx="12" fill="none" stroke="#d7dde7" stroke-width="2"/>
+    <text x="924" y="752" class="label ink">Final mask</text>
+    <text x="924" y="782" class="small muted">only selected wheels remain</text>
+
+    <rect x="112" y="870" width="1182" height="52" rx="26" fill="#eef2f7"/>
+    <text x="140" y="904" class="small muted">Key rule: pass all reasonable wheel candidates to the VLM after class and area filtering; do not truncate to top-2.</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="1390" y="392" width="454" height="566" rx="18" class="card"/>
+    <text x="1428" y="454" class="section ink">VLM decision</text>
+    <text x="1428" y="490" class="small muted">Compact JSON drives mask assembly.</text>
+
+    <rect x="1428" y="534" width="378" height="122" rx="14" class="green-card"/>
+    <text x="1460" y="582" class="label ink">Keep IDs</text>
+    <text x="1460" y="620" class="mono green">[0, 3]</text>
+
+    <rect x="1428" y="690" width="378" height="122" rx="14" class="red-card"/>
+    <text x="1460" y="738" class="label ink">Reject IDs</text>
+    <text x="1460" y="776" class="mono red">[1, 2]</text>
+
+    <rect x="1428" y="846" width="378" height="52" rx="26" class="dark-pill"/>
+    <text x="1460" y="879" class="small white">Default model: qwen3-vl-30b</text>
+
+    <text x="1428" y="928" class="tiny muted">Fallback to 235B when confidence is low</text>
+    <text x="1428" y="952" class="tiny muted">or scene geometry is ambiguous.</text>
+  </g>
+
+  <path d="M868 642 C982 642 1004 642 904 642" class="line-blue" opacity="0"/>
+</svg>

@@ -43,7 +43,7 @@ we now have paid generation outputs for the main candidates we discussed:
 Flux, Qwen, Gemini, and Reve.** Gemini is partial because the night case timed
 out; Reve is complete through the direct API.
 
-## Visual TL;DR
+## Inputs And Masks
 
 The three comparison cases were:
 
@@ -54,32 +54,9 @@ The three comparison cases were:
 Each case uses a car source image, a Qwen VLM-filtered binary mask, and the same
 rim reference image.
 
-![Input cars, candidate overlays, and final VLM masks](assets/fal-mask-inpaint-eval/sheets/inputs-and-masks.jpg){width=100%}
-
 Reference rim used by the runs:
 
-![Reference rim](assets/fal-mask-inpaint-eval/inputs/reference-rim1.jpg){width=35%}
-
-Overall frontier comparison:
-
-![Frontier comparison contact sheet](assets/fal-mask-inpaint-eval/sheets/frontier-comparison-contact.jpg){width=100%}
-
-Zoomed wheel regions:
-
-![Frontier comparison zoom sheet](assets/fal-mask-inpaint-eval/sheets/frontier-comparison-zoom.jpg){width=100%}
-
-Reading the matrix:
-
-- **Flux** edits the intended wheel areas most reliably.
-- **Qwen** keeps framing, but often makes spokes too bright/greenish and less
-  faithful to the black reference rim.
-- **Gemini** is unstable for this task: one daylight case became a two-image
-  collage, and another inserted a standalone product wheel instead of editing
-  the car.
-- **Reve direct** preserves the car framing, but often produces flatter black
-  wheels with weaker spoke detail and some color artifacts.
-
-## Inputs And Masks
+![Reference rim](assets/fal-mask-inpaint-eval/inputs/reference-rim1.jpg)
 
 The masks below are the exact Stage 2 VLM-filtered wheel masks used for the
 frontier comparison. White pixels indicate editable wheel areas; black pixels
@@ -87,34 +64,80 @@ should be preserved.
 
 ### `ivan-C1`
 
-![ivan-C1 source](assets/fal-mask-inpaint-eval/inputs/ivan-C1-source.jpg){width=48%}
-![ivan-C1 mask](assets/fal-mask-inpaint-eval/inputs/ivan-C1-mask.png){width=48%}
+Source:
 
-![ivan-C1 VLM candidate overlay](assets/fal-mask-inpaint-eval/inputs/ivan-C1-candidates-overlay.jpg){width=70%}
+![ivan-C1 source](assets/fal-mask-inpaint-eval/sequence/ivan-C1-01-source.jpg)
+
+Mask:
+
+![ivan-C1 mask](assets/fal-mask-inpaint-eval/sequence/ivan-C1-02-mask.jpg)
+
+Candidate overlay before VLM filtering:
+
+![ivan-C1 VLM candidate overlay](assets/fal-mask-inpaint-eval/inputs/ivan-C1-candidates-overlay.jpg)
 
 ### `ivan-C2`
 
-![ivan-C2 source](assets/fal-mask-inpaint-eval/inputs/ivan-C2-source.jpg){width=48%}
-![ivan-C2 mask](assets/fal-mask-inpaint-eval/inputs/ivan-C2-mask.png){width=48%}
+Source:
 
-![ivan-C2 VLM candidate overlay](assets/fal-mask-inpaint-eval/inputs/ivan-C2-candidates-overlay.jpg){width=70%}
+![ivan-C2 source](assets/fal-mask-inpaint-eval/sequence/ivan-C2-01-source.jpg)
+
+Mask:
+
+![ivan-C2 mask](assets/fal-mask-inpaint-eval/sequence/ivan-C2-02-mask.jpg)
+
+Candidate overlay before VLM filtering:
+
+![ivan-C2 VLM candidate overlay](assets/fal-mask-inpaint-eval/inputs/ivan-C2-candidates-overlay.jpg)
 
 ### `ivan-N2`
 
-![ivan-N2 source](assets/fal-mask-inpaint-eval/inputs/ivan-N2-source.jpg){width=48%}
-![ivan-N2 mask](assets/fal-mask-inpaint-eval/inputs/ivan-N2-mask.png){width=48%}
+Source:
 
-![ivan-N2 VLM candidate overlay](assets/fal-mask-inpaint-eval/inputs/ivan-N2-candidates-overlay.jpg){width=70%}
+![ivan-N2 source](assets/fal-mask-inpaint-eval/sequence/ivan-N2-01-source.jpg)
+
+Mask:
+
+![ivan-N2 mask](assets/fal-mask-inpaint-eval/sequence/ivan-N2-02-mask.jpg)
+
+Candidate overlay before VLM filtering:
+
+![ivan-N2 VLM candidate overlay](assets/fal-mask-inpaint-eval/inputs/ivan-N2-candidates-overlay.jpg)
 
 ## Generation Examples By Case
 
-These rows show the source, mask, and the generated outputs used for the current
-frontier comparison. `Gemini` is missing on `ivan-N2` because that paid request
-timed out at 300 seconds.
+The examples below use the same source car, same VLM mask, and same reference rim
+inside each case. Images are intentionally shown one after another rather than
+as a wide matrix, so the wheel details can be inspected.
+
+`Gemini` is missing on `ivan-N2` because that paid request timed out at 300
+seconds.
 
 ### `ivan-C1`
 
-![ivan-C1 generation row](assets/fal-mask-inpaint-eval/sheets/ivan-C1-case-row.jpg){width=100%}
+Source:
+
+![ivan-C1 source](assets/fal-mask-inpaint-eval/sequence/ivan-C1-01-source.jpg)
+
+Mask:
+
+![ivan-C1 mask](assets/fal-mask-inpaint-eval/sequence/ivan-C1-02-mask.jpg)
+
+Flux `flux-s085-g25`:
+
+![ivan-C1 Flux output](assets/fal-mask-inpaint-eval/sequence/ivan-C1-03-flux.jpg)
+
+Qwen `qwen-edit-default`:
+
+![ivan-C1 Qwen output](assets/fal-mask-inpaint-eval/sequence/ivan-C1-04-qwen.jpg)
+
+Gemini `gemini-3-pro-rim-mask`:
+
+![ivan-C1 Gemini output](assets/fal-mask-inpaint-eval/sequence/ivan-C1-05-gemini.jpg)
+
+Reve direct API:
+
+![ivan-C1 Reve output](assets/fal-mask-inpaint-eval/sequence/ivan-C1-06-reve.jpg)
 
 Visual notes:
 
@@ -128,7 +151,29 @@ Visual notes:
 
 ### `ivan-C2`
 
-![ivan-C2 generation row](assets/fal-mask-inpaint-eval/sheets/ivan-C2-case-row.jpg){width=100%}
+Source:
+
+![ivan-C2 source](assets/fal-mask-inpaint-eval/sequence/ivan-C2-01-source.jpg)
+
+Mask:
+
+![ivan-C2 mask](assets/fal-mask-inpaint-eval/sequence/ivan-C2-02-mask.jpg)
+
+Flux `flux-s085-g25`:
+
+![ivan-C2 Flux output](assets/fal-mask-inpaint-eval/sequence/ivan-C2-03-flux.jpg)
+
+Qwen `qwen-edit-default`:
+
+![ivan-C2 Qwen output](assets/fal-mask-inpaint-eval/sequence/ivan-C2-04-qwen.jpg)
+
+Gemini `gemini-3-pro-rim-mask`:
+
+![ivan-C2 Gemini output](assets/fal-mask-inpaint-eval/sequence/ivan-C2-05-gemini.jpg)
+
+Reve direct API:
+
+![ivan-C2 Reve output](assets/fal-mask-inpaint-eval/sequence/ivan-C2-06-reve.jpg)
 
 Visual notes:
 
@@ -141,7 +186,29 @@ Visual notes:
 
 ### `ivan-N2`
 
-![ivan-N2 generation row](assets/fal-mask-inpaint-eval/sheets/ivan-N2-case-row.jpg){width=100%}
+Source:
+
+![ivan-N2 source](assets/fal-mask-inpaint-eval/sequence/ivan-N2-01-source.jpg)
+
+Mask:
+
+![ivan-N2 mask](assets/fal-mask-inpaint-eval/sequence/ivan-N2-02-mask.jpg)
+
+Flux `flux-s085-g25`:
+
+![ivan-N2 Flux output](assets/fal-mask-inpaint-eval/sequence/ivan-N2-03-flux.jpg)
+
+Qwen `qwen-edit-default`:
+
+![ivan-N2 Qwen output](assets/fal-mask-inpaint-eval/sequence/ivan-N2-04-qwen.jpg)
+
+Gemini `gemini-3-pro-rim-mask`:
+
+No completed output. The paid request timed out after 300 seconds.
+
+Reve direct API:
+
+![ivan-N2 Reve output](assets/fal-mask-inpaint-eval/sequence/ivan-N2-06-reve.jpg)
 
 Visual notes:
 

@@ -123,6 +123,10 @@ Mask:
 
 ![ivan-C1 mask](assets/fal-mask-inpaint-eval/sequence/ivan-C1-02-mask.jpg)
 
+Wheel source / target rim:
+
+![Reference rim for ivan-C1](assets/fal-mask-inpaint-eval/inputs/reference-rim1.jpg)
+
 Flux `flux-s085-g25`:
 
 ![ivan-C1 Flux output](assets/fal-mask-inpaint-eval/sequence/ivan-C1-03-flux.jpg)
@@ -159,6 +163,10 @@ Mask:
 
 ![ivan-C2 mask](assets/fal-mask-inpaint-eval/sequence/ivan-C2-02-mask.jpg)
 
+Wheel source / target rim:
+
+![Reference rim for ivan-C2](assets/fal-mask-inpaint-eval/inputs/reference-rim1.jpg)
+
 Flux `flux-s085-g25`:
 
 ![ivan-C2 Flux output](assets/fal-mask-inpaint-eval/sequence/ivan-C2-03-flux.jpg)
@@ -193,6 +201,10 @@ Source:
 Mask:
 
 ![ivan-N2 mask](assets/fal-mask-inpaint-eval/sequence/ivan-N2-02-mask.jpg)
+
+Wheel source / target rim:
+
+![Reference rim for ivan-N2](assets/fal-mask-inpaint-eval/inputs/reference-rim1.jpg)
 
 Flux `flux-s085-g25`:
 

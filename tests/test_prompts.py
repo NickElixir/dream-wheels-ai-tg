@@ -46,9 +46,12 @@ def test_build_prompt_default_uses_default_rim():
     prompt = build_prompt()
     assert "<img>0</img>" in prompt
     assert "<img>1</img>" in prompt
+    assert "exact wheel design, color, finish" in prompt
+    assert "Preserve original scene lighting" in prompt
     assert "5-spoke flat design" in prompt
     assert "Avoid:" in prompt
     assert "blurry" in prompt  # из NEGATIVE_PROMPT
+    assert "studio lighting" not in prompt.lower()
 
 
 def test_build_prompt_includes_rim_description():

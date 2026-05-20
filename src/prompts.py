@@ -12,13 +12,18 @@ from __future__ import annotations
 from src.rim import RimDescription
 
 BASE_PROMPT_TEMPLATE = (
-    "Professional automotive photography. Replace ONLY the wheels of the "
-    "car shown in <img>0</img> with the wheels from <img>1</img>. "
-    "Preserve the car body, paint, lighting, perspective and ground "
-    "shadows of <img>0</img> exactly. The new wheels must sit correctly "
-    "inside the wheel arches, with realistic contact patches and tyre "
-    "shadows. {rim_fragment}"
-    "High resolution, photorealistic, sharp focus on the wheels."
+    "Replace the existing wheels on the car shown in <img>0</img> with the "
+    "provided alloy wheel design from <img>1</img>. Use the exact wheel design, "
+    "color, finish, spoke pattern, center cap, and material from <img>1</img>. "
+    "If any text description conflicts with the wheel reference image, the "
+    "reference image wins. Match correct perspective, scale, and alignment with "
+    "the car hub. Preserve original scene lighting, realistic reflections, and "
+    "physically accurate shadows. Keep brake disc and wheel depth physically "
+    "plausible. Match tire profile and maintain correct wheel size relative to "
+    "the car. Do not alter car body, car color, background, windows, road, or "
+    "license plates. {rim_fragment}"
+    "Photorealistic, ultra detailed, automotive photography, high resolution, "
+    "natural reflections."
 )
 
 NEGATIVE_PROMPT = (
@@ -38,7 +43,5 @@ def build_prompt(rim: RimDescription | None = None) -> str:
     """
     rim = rim or RimDescription()
     fragment = rim.to_prompt_fragment()
-    base = BASE_PROMPT_TEMPLATE.format(
-        rim_fragment=f"{fragment} " if fragment else ""
-    )
+    base = BASE_PROMPT_TEMPLATE.format(rim_fragment=f"{fragment} " if fragment else "")
     return f"{base} Avoid: {NEGATIVE_PROMPT}."

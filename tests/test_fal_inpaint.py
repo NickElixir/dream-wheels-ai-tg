@@ -171,11 +171,12 @@ def test_build_sdxl_arguments_include_base_model_name():
 
 
 def test_prompt_keeps_unmasked_pixels_explicit():
-    prompt = build_prompt(wheel_description="matte black 5-spoke rims")
+    prompt = build_prompt()
 
-    assert "matte black 5-spoke rims" in prompt
-    assert "Preserve tires" in prompt
+    assert "exact wheel design, color, finish" in prompt
+    assert "Preserve original scene lighting" in prompt
     assert "unmasked pixels" in prompt
+    assert "studio lighting" not in prompt.lower()
 
 
 def test_first_image_url_supports_common_fal_shapes():

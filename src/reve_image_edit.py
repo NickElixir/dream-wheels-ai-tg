@@ -14,16 +14,23 @@ DEFAULT_REVE_ASPECT_RATIO = "16:9"
 def build_reve_edit_prompt(*, wheel_description: str | None = None) -> str:
     """Build a conservative direct-Reve prompt using car, rim, and mask images."""
 
-    wheel_fragment = wheel_description or "the reference wheel rim design"
+    wheel_fragment = (
+        wheel_description
+        or "the exact wheel design, color, finish, spoke pattern, center cap, and material "
+        "from the reference image"
+    )
     return (
         "Use <img>0</img> as the source car photo. Use <img>1</img> as the wheel rim "
         "design reference. Use <img>2</img> as a binary edit mask: white pixels mark "
-        "the wheel rim areas to replace and black pixels mark areas to preserve. "
-        f"Replace only the visible wheel rims with {wheel_fragment}. Preserve tires, "
-        "wheel wells, car body, paint, windows, road, background, license plates, "
-        "lighting, shadows, reflections, camera angle, and all unmasked pixels. "
-        "The result must remain a photorealistic automotive photo. Keep black rim "
-        "spokes readable in low light; do not turn the wheels into flat black disks. "
+        "the wheel/rim areas to replace and black pixels mark areas to preserve. "
+        f"Replace only the visible wheel/rim areas with {wheel_fragment}. If any text "
+        "description conflicts with the wheel reference image, the reference image wins. "
+        "Match correct perspective, scale, and alignment with the car hub. Preserve "
+        "original scene lighting, realistic reflections, and physically accurate shadows. "
+        "Keep brake disc and wheel depth physically plausible. Match tire profile and "
+        "maintain correct wheel size relative to the car. Do not alter car body, car color, "
+        "background, windows, road, tires, license plates, camera angle, or unmasked pixels. "
+        "Photorealistic, ultra detailed, automotive photography, high resolution, natural reflections. "
         "Avoid changed car shape, changed background, floating wheels, distorted tires, "
         "cartoon rendering, text, logos, or watermarks."
     )

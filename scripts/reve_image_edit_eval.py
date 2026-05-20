@@ -4,7 +4,8 @@ This runner uses the first-party Reve remix endpoint instead of fal.ai. It
 shares the same JSONL manifest shape as scripts/fal_inpaint_eval.py:
 
     {"id":"case-001","car_image":"data/cars/001.jpg","mask_image":"tmp/masks/001.png",
-     "reference_image":"data/rims/ref.png","wheel_description":"matte black 5-spoke rims"}
+     "reference_image":"data/rims/ref.png",
+     "wheel_description":"the exact wheel design, color, finish, spoke pattern, center cap, and material from the reference image"}
 
 Paid inference requires an explicit flag:
 
@@ -31,6 +32,7 @@ ROOT_DIR = Path(__file__).resolve().parents[1]
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
+from src.prompts import build_prompt as build_reve_production_prompt  # noqa: E402
 from src.reve_image_edit import (  # noqa: E402
     DEFAULT_REVE_ASPECT_RATIO,
     DEFAULT_REVE_REMIX_URL,
@@ -126,6 +128,7 @@ def _make_plan(
     limit: int | None,
     aspect_ratio: str,
     version: str,
+    mode: str,
 ) -> list[dict[str, Any]]:
     selected_cases = cases[:limit] if limit else cases
     plan: list[dict[str, Any]] = []
@@ -136,8 +139,9 @@ def _make_plan(
         plan.append(
             {
                 "case_id": case["id"],
-                "config": "reve-direct-remix-rim-mask",
+                "config": f"reve-direct-{mode}",
                 "endpoint": DEFAULT_REVE_REMIX_URL,
+                "mode": mode,
                 "aspect_ratio": aspect_ratio,
                 "version": version,
                 "estimated_cost_usd": "",
@@ -180,13 +184,16 @@ def _call_reve(
     if not api_key:
         raise RuntimeError("REVE_API_KEY is not set")
 
+    reference_images = [
+        image_file_to_base64(Path(row["car_image"])),
+        image_file_to_base64(Path(row["reference_image"])),
+    ]
+    if row["mode"] == "masked":
+        reference_images.append(image_file_to_base64(Path(row["mask_image"])))
+
     payload = {
         "prompt": prompt,
-        "reference_images": [
-            image_file_to_base64(Path(row["car_image"])),
-            image_file_to_base64(Path(row["reference_image"])),
-            image_file_to_base64(Path(row["mask_image"])),
-        ],
+        "reference_images": reference_images,
         "aspect_ratio": row["aspect_ratio"],
         "version": row["version"],
     }
@@ -243,7 +250,10 @@ def _execute_plan(
                 handle.write(json.dumps(record, ensure_ascii=False) + "\n")
             continue
 
-        prompt = build_reve_edit_prompt(wheel_description=row.get("wheel_description") or None)
+        if row["mode"] == "production":
+            prompt = build_reve_production_prompt()
+        else:
+            prompt = build_reve_edit_prompt(wheel_description=row.get("wheel_description") or None)
         started_at = datetime.now(UTC).isoformat()
         try:
             result = _call_reve(
@@ -290,6 +300,7 @@ def main() -> int:
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
     parser.add_argument("--aspect-ratio", default=DEFAULT_REVE_ASPECT_RATIO)
     parser.add_argument("--version", default=DEFAULT_REVE_VERSION)
+    parser.add_argument("--mode", choices=["masked", "production"], default="masked")
     parser.add_argument("--timeout", type=float, default=180.0)
     parser.add_argument("--max-retries", type=int, default=2)
     parser.add_argument(
@@ -307,6 +318,7 @@ def main() -> int:
         limit=args.limit,
         aspect_ratio=args.aspect_ratio,
         version=args.version,
+        mode=args.mode,
     )
     skipped = sum(1 for row in plan if not row["preflight_ok"])
 

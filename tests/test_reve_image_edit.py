@@ -10,13 +10,15 @@ from src.reve_image_edit import (
 
 
 def test_build_reve_edit_prompt_references_car_rim_and_mask():
-    prompt = build_reve_edit_prompt(wheel_description="matte black multi-spoke rims")
+    prompt = build_reve_edit_prompt()
 
     assert "<img>0</img>" in prompt
     assert "<img>1</img>" in prompt
     assert "<img>2</img>" in prompt
     assert "white pixels mark" in prompt
-    assert "matte black multi-spoke rims" in prompt
+    assert "exact wheel design, color, finish" in prompt
+    assert "Preserve original scene lighting" in prompt
+    assert "studio lighting" not in prompt.lower()
 
 
 def test_image_file_to_base64_reads_file(tmp_path: Path):

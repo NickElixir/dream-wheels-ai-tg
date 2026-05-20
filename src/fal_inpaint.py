@@ -318,12 +318,21 @@ def estimate_cost_usd(*, image_path: Path, config: FalRunConfig) -> float:
 def build_prompt(*, wheel_description: str | None = None) -> str:
     """Build a conservative masked wheel replacement prompt."""
 
-    wheel_fragment = wheel_description or "the reference wheel rim design"
+    wheel_fragment = (
+        wheel_description
+        or "the exact wheel design, color, finish, spoke pattern, center cap, and material "
+        "from the reference image"
+    )
     return (
-        "Replace only the visible wheel rims inside the white mask. "
-        f"Use {wheel_fragment}. Match each wheel's perspective, scale, shadows, "
-        "reflections, and lighting. Preserve tires, car body, paint, windows, road, "
-        "background, license plates, and all unmasked pixels. Photorealistic automotive photo."
+        "Replace the existing wheels on the car with the provided alloy wheel design. "
+        f"Use {wheel_fragment}. Replace only the visible wheel/rim areas inside the "
+        "white mask. Match correct perspective, scale, and alignment with the car hub. "
+        "Preserve original scene lighting, realistic reflections, and physically accurate "
+        "shadows. Keep brake disc and wheel depth physically plausible. Match tire profile "
+        "and maintain correct wheel size relative to the car. Do not alter car body, car "
+        "color, background, license plates, windows, road, tires, or any unmasked pixels. "
+        "Photorealistic, ultra detailed, automotive photography, high resolution, natural "
+        "reflections."
     )
 
 

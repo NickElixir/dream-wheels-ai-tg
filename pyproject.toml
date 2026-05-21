@@ -18,6 +18,7 @@ exclude = [
     "__pycache__",
     "static",
     "migrations",
+    "wheel_fitment_test_v2",
 ]
 
 [tool.ruff.lint]

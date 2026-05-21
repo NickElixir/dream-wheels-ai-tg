@@ -4,7 +4,7 @@ import logging
 import aiohttp
 import redis.asyncio as redis
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update, WebAppInfo
-from telegram.ext import Application, CallbackQueryHandler, CommandHandler, ContextTypes, MessageHandler, filters
+from telegram.ext import Application, CallbackQueryHandler, CommandHandler, ContextTypes, filters, MessageHandler
 
 from src.config import API_BASE_URL, BOT_TOKEN, REDIS_URL, WEBAPP_URL
 

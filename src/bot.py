@@ -4,7 +4,14 @@ import logging
 import aiohttp
 import redis.asyncio as redis
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update, WebAppInfo
-from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
+from telegram.ext import (
+    Application,
+    CallbackQueryHandler,
+    CommandHandler,
+    ContextTypes,
+    MessageHandler,
+    filters,
+)
 
 from src.config import API_BASE_URL, BOT_TOKEN, REDIS_URL, WEBAPP_URL
 
@@ -31,6 +38,21 @@ def _get_redis() -> redis.Redis:
 SESSION_TTL_SEC = 600
 POLL_INTERVAL_SEC = 3
 POLL_MAX_RETRIES = 60  # 60 * 3 = 3 минуты ожидания результата
+
+FEEDBACK_KEYBOARD = {
+    "en": {
+        "like": "👍 Like",
+        "dislike": "👎 Dislike",
+        "voted_like": "✅ 👍 Liked",
+        "voted_dislike": "✅ 👎 Disliked",
+    },
+    "ru": {
+        "like": "👍 Нравится",
+        "dislike": "👎 Не нравится",
+        "voted_like": "✅ 👍 Понравилось",
+        "voted_dislike": "✅ 👎 Не понравилось",
+    },
+}
 
 MESSAGES = {
     "en": {
@@ -135,9 +157,25 @@ async def poll_job_status(update: Update, status_msg, job_id: str):
                         status = data["status"]
 
                         if status == "completed":
+                            lang = _locale(update)
+                            fb = FEEDBACK_KEYBOARD[lang]
+                            feedback_markup = InlineKeyboardMarkup(
+                                [
+                                    [
+                                        InlineKeyboardButton(
+                                            fb["like"], callback_data=f"feedback:like:{job_id}"
+                                        ),
+                                        InlineKeyboardButton(
+                                            fb["dislike"],
+                                            callback_data=f"feedback:dislike:{job_id}",
+                                        ),
+                                    ]
+                                ]
+                            )
                             await update.message.reply_photo(
                                 photo=data["output_image_url"],
                                 caption=_t(update, "done_caption"),
+                                reply_markup=feedback_markup,
                             )
                             await status_msg.delete()
                             return
@@ -153,11 +191,44 @@ async def poll_job_status(update: Update, status_msg, job_id: str):
     await status_msg.edit_text(_t(update, "timeout"))
 
 
+async def handle_feedback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+
+    parts = (query.data or "").split(":")
+    if len(parts) != 3 or parts[0] != "feedback":
+        return
+    _, vote, job_id = parts
+
+    lang = _locale(update)
+    fb = FEEDBACK_KEYBOARD[lang]
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            await session.post(
+                f"{API_BASE_URL}/jobs/{job_id}/feedback",
+                json={"vote": vote},
+            )
+    except Exception as e:
+        logger.exception(f"Ошибка отправки feedback job_id={job_id}: {e}")
+
+    voted_label = fb["voted_like"] if vote == "like" else fb["voted_dislike"]
+    try:
+        await query.edit_message_reply_markup(
+            reply_markup=InlineKeyboardMarkup(
+                [[InlineKeyboardButton(voted_label, callback_data="noop")]]
+            )
+        )
+    except Exception:
+        pass
+
+
 def main():
     logger.info("Запуск Telegram-бота...")
     application = Application.builder().token(BOT_TOKEN).build()
     application.add_handler(CommandHandler("start", start))
     application.add_handler(MessageHandler(filters.PHOTO, handle_photo))
+    application.add_handler(CallbackQueryHandler(handle_feedback, pattern=r"^feedback:"))
     application.run_polling()
 
 

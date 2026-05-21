@@ -76,6 +76,17 @@ class JobStatusDetailedResponse(BaseModel):
     error: str | None = None
 
 
+class FeedbackRequest(BaseModel):
+    vote: str
+
+    @field_validator("vote")
+    @classmethod
+    def validate_vote(cls, v: str) -> str:
+        if v not in ("like", "dislike"):
+            raise ValueError("vote must be 'like' or 'dislike'")
+        return v
+
+
 def _download_filename(job_id: str, content_type: str | None) -> str:
     ext = {
         "image/jpeg": "jpg",
@@ -318,6 +329,21 @@ async def get_job_status_detailed(job_id: str):
         result_url=row["output_image_url"],
         error=row["error_message"],
     )
+
+
+@router.post("/{job_id}/feedback", status_code=204)
+async def submit_feedback(job_id: str, request: FeedbackRequest):
+    """Сохранить лайк/дизлайк на результат. Повторный вызов перезаписывает."""
+    pool = db.get_pool()
+    async with pool.acquire() as conn:
+        result = await conn.execute(
+            "UPDATE jobs SET feedback = $1 WHERE id = $2::uuid",
+            request.vote,
+            job_id,
+        )
+    if result == "UPDATE 0":
+        raise HTTPException(status_code=404, detail="Job not found")
+    logger.info(f"👍 Feedback '{request.vote}' для job_id={job_id}")
 
 
 @router.get("/{job_id}/download")

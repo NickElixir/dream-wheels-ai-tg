@@ -69,6 +69,10 @@ const I18N = {
             canceled: "Canceled",
             failed: "Failed",
         },
+        feedback: {
+            label: "How did it turn out?",
+            thanks: "Thanks for the feedback!",
+        },
         errors: {
             generic: "Something went wrong",
             missingFiles: "Files are missing. Go back and upload both photos.",
@@ -130,6 +134,10 @@ const I18N = {
             canceled: "Отменено",
             failed: "Не удалось",
         },
+        feedback: {
+            label: "Как результат?",
+            thanks: "Спасибо за оценку!",
+        },
         errors: {
             generic: "Что-то пошло не так",
             missingFiles: "Файлы не выбраны — вернитесь и загрузите оба фото",
@@ -187,6 +195,7 @@ const state = {
     downloading: false,
     sharing: false,
     submitting: false,
+    voted: false,
 };
 
 /* ---------- Telegram bootstrap ---------- */
@@ -324,6 +333,7 @@ function resetFlow() {
     state.downloading = false;
     state.sharing = false;
     state.submitting = false;
+    state.voted = false;
     state.files = { car: null, wheel: null };
     state.jobId = null;
     state.resultUrl = null;
@@ -344,6 +354,16 @@ function resetFlow() {
     if (shareButton) {
         shareButton.hidden = true;
         setShareButtonState();
+    }
+    const feedbackBlock = document.querySelector("[data-feedback-block]");
+    if (feedbackBlock) {
+        feedbackBlock.hidden = true;
+        feedbackBlock.querySelectorAll(".feedback-btn").forEach((btn) => {
+            btn.disabled = false;
+            btn.classList.remove("selected-like", "selected-dislike");
+        });
+        const thanks = feedbackBlock.querySelector("[data-feedback-thanks]");
+        if (thanks) thanks.hidden = true;
     }
     document.querySelectorAll("input[data-input]").forEach((i) => (i.value = ""));
     showScreen("upload");
@@ -569,6 +589,42 @@ function attachResultHandlers() {
     }
 }
 
+/* ---------- Feedback ---------- */
+
+async function sendFeedback(vote) {
+    if (state.voted || !state.jobId) return;
+    state.voted = true;
+
+    const feedbackBlock = document.querySelector("[data-feedback-block]");
+    const thanks = document.querySelector("[data-feedback-thanks]");
+    feedbackBlock.querySelectorAll(".feedback-btn").forEach((btn) => {
+        btn.disabled = true;
+        if (btn.dataset.feedback === vote) {
+            btn.classList.add(vote === "like" ? "selected-like" : "selected-dislike");
+        }
+    });
+
+    haptic("success");
+
+    try {
+        await fetch(`${API_BASE_URL}/jobs/${state.jobId}/feedback`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ vote }),
+        });
+    } catch (e) {
+        console.error("[DW] feedback failed", e);
+    }
+
+    if (thanks) thanks.hidden = false;
+}
+
+function attachFeedbackHandlers() {
+    document.querySelectorAll("[data-feedback]").forEach((btn) => {
+        btn.addEventListener("click", () => sendFeedback(btn.dataset.feedback));
+    });
+}
+
 /* ---------- Submit ---------- */
 
 const API_BASE_URL = "https://dream-wheels-ai-tg.onrender.com";
@@ -745,6 +801,8 @@ async function submitJob() {
                 setShareButtonState();
                 shareButton.hidden = !state.resultUrl;
             }
+            const feedbackBlock = document.querySelector("[data-feedback-block]");
+            if (feedbackBlock) feedbackBlock.hidden = false;
             resultBlock.hidden = false;
             refreshButtonsForScreen();
             pushDebug("poll:completed");
@@ -767,5 +825,6 @@ document.addEventListener("DOMContentLoaded", () => {
     initTelegram();
     attachFileHandlers();
     attachResultHandlers();
+    attachFeedbackHandlers();
     showScreen("upload");
 });

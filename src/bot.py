@@ -131,7 +131,13 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     status_msg = await update.message.reply_text(_t(update, "creating_job"))
 
     async with aiohttp.ClientSession() as session:
-        payload = {"telegram_user_id": user_id, "car_url": cached_car_url, "wheel_url": wheel_url}
+        username = update.effective_user.username if update.effective_user else None
+        payload = {
+            "telegram_user_id": user_id,
+            "username": username,
+            "car_url": cached_car_url,
+            "wheel_url": wheel_url,
+        }
         try:
             async with session.post(f"{API_BASE_URL}/jobs", json=payload) as resp:
                 if resp.status != 200:

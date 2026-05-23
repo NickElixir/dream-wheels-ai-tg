@@ -45,8 +45,17 @@ IDEMPOTENCY_TTL_SEC = 60 * 60
 
 class JobCreateRequest(BaseModel):
     telegram_user_id: int
+    username: str | None = None
     car_url: str
     wheel_url: str
+
+    @field_validator("username")
+    @classmethod
+    def normalize_username(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        username = v.strip().lstrip("@")
+        return username or None
 
     @field_validator("car_url", "wheel_url")
     @classmethod
@@ -125,19 +134,32 @@ def _download_filename(job_id: str, content_type: str | None) -> str:
     return f"dream-wheels-{job_id}.{ext}"
 
 
-async def _ensure_user(telegram_user_id: int) -> int:
-    """Найти или создать users.id по telegram_user_id."""
+async def _ensure_user(telegram_user_id: int, username: str | None = None) -> int:
+    """Найти или создать users.id по telegram_user_id, обновив username при наличии."""
     pool = db.get_pool()
     async with pool.acquire() as conn:
         user_id = await conn.fetchval(
             "SELECT id FROM users WHERE telegram_user_id = $1",
             telegram_user_id,
         )
-        if not user_id:
-            user_id = await conn.fetchval(
-                "INSERT INTO users (telegram_user_id) VALUES ($1) RETURNING id",
-                telegram_user_id,
-            )
+        if user_id:
+            if username:
+                await conn.execute(
+                    "UPDATE users SET username = $1 WHERE id = $2",
+                    username,
+                    user_id,
+                )
+            return user_id
+
+        user_id = await conn.fetchval(
+            """
+            INSERT INTO users (telegram_user_id, username)
+            VALUES ($1, $2)
+            RETURNING id
+            """,
+            telegram_user_id,
+            username,
+        )
     return user_id
 
 
@@ -159,7 +181,7 @@ async def create_job(request: JobCreateRequest):
     rds = redis_client.get_client()
 
     try:
-        user_id = await _ensure_user(request.telegram_user_id)
+        user_id = await _ensure_user(request.telegram_user_id, request.username)
         async with pool.acquire() as conn:
             await conn.execute(
                 """
@@ -221,6 +243,8 @@ async def upload_job(
     if not telegram_user_id:
         raise HTTPException(status_code=401, detail="initData без user.id")
     telegram_user_id = int(telegram_user_id)
+    username_raw = user.get("username")
+    username = username_raw if isinstance(username_raw, str) else None
 
     await enforce_rate_limit(
         scope="jobs_upload",
@@ -281,7 +305,7 @@ async def upload_job(
         raise HTTPException(status_code=502, detail="Storage upload failed") from exc
 
     try:
-        user_id = await _ensure_user(telegram_user_id)
+        user_id = await _ensure_user(telegram_user_id, username)
         pool = db.get_pool()
         async with pool.acquire() as conn:
             await conn.execute(

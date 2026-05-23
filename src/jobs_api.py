@@ -12,12 +12,13 @@ import uuid
 from typing import Annotated
 
 import httpx
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, File, Form, Header, HTTPException, UploadFile
 from fastapi.responses import Response
 from pydantic import BaseModel, field_validator
 
 from src import db, redis_client, storage
 from src.auth import InitDataInvalid, parse_init_data
+from src.config import API_INTERNAL_TOKEN
 from src.rate_limit import enforce_rate_limit
 
 logger = logging.getLogger(__name__)
@@ -78,6 +79,8 @@ class JobStatusDetailedResponse(BaseModel):
 
 class FeedbackRequest(BaseModel):
     vote: str
+    init_data: str | None = None
+    telegram_user_id: int | None = None
 
     @field_validator("vote")
     @classmethod
@@ -85,6 +88,31 @@ class FeedbackRequest(BaseModel):
         if v not in ("like", "dislike"):
             raise ValueError("vote must be 'like' or 'dislike'")
         return v
+
+
+def _telegram_user_id_from_feedback_request(
+    request: FeedbackRequest,
+    internal_token: str | None,
+) -> int:
+    if request.init_data:
+        try:
+            parsed = parse_init_data(request.init_data)
+        except InitDataInvalid as exc:
+            raise HTTPException(status_code=401, detail=f"initData invalid: {exc}") from exc
+        user = parsed.get("user") or {}
+        telegram_user_id = user.get("id")
+        if not telegram_user_id:
+            raise HTTPException(status_code=401, detail="initData без user.id")
+        return int(telegram_user_id)
+
+    if not API_INTERNAL_TOKEN:
+        logger.error("API_INTERNAL_TOKEN не сконфигурирован: bot feedback отключён")
+        raise HTTPException(status_code=503, detail="Feedback auth is not configured")
+    if not internal_token or internal_token != API_INTERNAL_TOKEN:
+        raise HTTPException(status_code=401, detail="Invalid internal token")
+    if request.telegram_user_id is None:
+        raise HTTPException(status_code=400, detail="telegram_user_id required")
+    return request.telegram_user_id
 
 
 def _download_filename(job_id: str, content_type: str | None) -> str:
@@ -124,8 +152,7 @@ async def create_job(request: JobCreateRequest):
     )
 
     logger.info(
-        f"📥 Получен запрос на создание задачи. "
-        f"Авто: {request.car_url}, Диск: {request.wheel_url}"
+        f"📥 Получен запрос на создание задачи. Авто: {request.car_url}, Диск: {request.wheel_url}"
     )
     job_id = str(uuid.uuid4())
     pool = db.get_pool()
@@ -332,18 +359,35 @@ async def get_job_status_detailed(job_id: str):
 
 
 @router.post("/{job_id}/feedback", status_code=204)
-async def submit_feedback(job_id: str, request: FeedbackRequest):
-    """Сохранить лайк/дизлайк на результат. Повторный вызов перезаписывает."""
+async def submit_feedback(
+    job_id: str,
+    request: FeedbackRequest,
+    x_internal_token: Annotated[str | None, Header(alias="X-Internal-Token")] = None,
+):
+    """Сохранить лайк/дизлайк на результат. Повторный вызов перезаписывает.
+
+    WebApp подтверждает владельца через Telegram initData. Бот ходит как
+    trusted backend client с X-Internal-Token и telegram_user_id из callback.
+    """
+    telegram_user_id = _telegram_user_id_from_feedback_request(request, x_internal_token)
     pool = db.get_pool()
     async with pool.acquire() as conn:
         result = await conn.execute(
-            "UPDATE jobs SET feedback = $1 WHERE id = $2::uuid",
+            """
+            UPDATE jobs
+            SET feedback = $1
+            FROM users
+            WHERE jobs.id = $2::uuid
+              AND jobs.user_id = users.id
+              AND users.telegram_user_id = $3
+            """,
             request.vote,
             job_id,
+            telegram_user_id,
         )
     if result == "UPDATE 0":
         raise HTTPException(status_code=404, detail="Job not found")
-    logger.info(f"👍 Feedback '{request.vote}' для job_id={job_id}")
+    logger.info(f"👍 Feedback '{request.vote}' для job_id={job_id} tg_user={telegram_user_id}")
 
 
 @router.get("/{job_id}/download")

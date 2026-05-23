@@ -13,7 +13,7 @@ from telegram.ext import (
     filters,
 )
 
-from src.config import API_BASE_URL, BOT_TOKEN, REDIS_URL, WEBAPP_URL
+from src.config import API_BASE_URL, API_INTERNAL_TOKEN, BOT_TOKEN, REDIS_URL, WEBAPP_URL
 
 logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -45,12 +45,14 @@ FEEDBACK_KEYBOARD = {
         "dislike": "👎 Dislike",
         "voted_like": "✅ 👍 Liked",
         "voted_dislike": "✅ 👎 Disliked",
+        "failed": "Could not save feedback. Please try again.",
     },
     "ru": {
         "like": "👍 Нравится",
         "dislike": "👎 Не нравится",
         "voted_like": "✅ 👍 Понравилось",
         "voted_dislike": "✅ 👎 Не понравилось",
+        "failed": "Не удалось сохранить оценку. Попробуйте ещё раз.",
     },
 }
 
@@ -193,27 +195,49 @@ async def poll_job_status(update: Update, status_msg, job_id: str):
 
 async def handle_feedback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    await query.answer()
 
     parts = (query.data or "").split(":")
     if len(parts) != 3 or parts[0] != "feedback":
+        await query.answer()
         return
     _, vote, job_id = parts
 
     lang = _locale(update)
     fb = FEEDBACK_KEYBOARD[lang]
+    telegram_user_id = query.from_user.id if query.from_user else None
+    if telegram_user_id is None:
+        await query.answer(fb["failed"], show_alert=True)
+        return
 
     try:
         async with aiohttp.ClientSession() as session:
-            await session.post(
+            headers = {}
+            if API_INTERNAL_TOKEN:
+                headers["X-Internal-Token"] = API_INTERNAL_TOKEN
+            async with session.post(
                 f"{API_BASE_URL}/jobs/{job_id}/feedback",
-                json={"vote": vote},
-            )
+                json={"vote": vote, "telegram_user_id": telegram_user_id},
+                headers=headers,
+            ) as resp:
+                if resp.status != 204:
+                    body = await resp.text()
+                    logger.warning(
+                        "Feedback API rejected job_id=%s tg_user=%s status=%s body=%s",
+                        job_id,
+                        telegram_user_id,
+                        resp.status,
+                        body[:500],
+                    )
+                    await query.answer(fb["failed"], show_alert=True)
+                    return
     except Exception as e:
         logger.exception(f"Ошибка отправки feedback job_id={job_id}: {e}")
+        await query.answer(fb["failed"], show_alert=True)
+        return
 
     voted_label = fb["voted_like"] if vote == "like" else fb["voted_dislike"]
     try:
+        await query.answer()
         await query.edit_message_reply_markup(
             reply_markup=InlineKeyboardMarkup(
                 [[InlineKeyboardButton(voted_label, callback_data="noop")]]

@@ -52,6 +52,9 @@ const I18N = {
         },
         result: {
             imageAlt: "AI render",
+            before: "Before",
+            after: "After",
+            beforeAlt: "Original car photo",
             title: "Done!",
             caption: "Your render with new wheels is ready.",
         },
@@ -122,6 +125,9 @@ const I18N = {
         },
         result: {
             imageAlt: "AI рендер",
+            before: "До",
+            after: "После",
+            beforeAlt: "Исходное фото машины",
             title: "Готово!",
             caption: "Ваш рендер с новыми дисками готов.",
         },
@@ -202,6 +208,7 @@ const state = {
     jobId: null,
     resultUrl: null,
     shareUrl: null,
+    resultBeforeObjectUrl: null,
     resultDownloadUrl: null,
     resultFileName: null,
     downloading: false,
@@ -351,6 +358,10 @@ function resetFlow() {
     state.jobId = null;
     state.resultUrl = null;
     state.shareUrl = null;
+    if (state.resultBeforeObjectUrl) {
+        URL.revokeObjectURL(state.resultBeforeObjectUrl);
+    }
+    state.resultBeforeObjectUrl = null;
     state.resultDownloadUrl = null;
     state.resultFileName = null;
     ["car", "wheel"].forEach((s) => {
@@ -383,6 +394,18 @@ function resetFlow() {
         }
     }
     document.querySelectorAll("input[data-input]").forEach((i) => (i.value = ""));
+    const resultCompare = document.querySelector("[data-result-compare]");
+    if (resultCompare) resultCompare.hidden = true;
+    const resultBeforeImg = document.querySelector("[data-result-before-img]");
+    if (resultBeforeImg) {
+        resultBeforeImg.hidden = true;
+        resultBeforeImg.removeAttribute("src");
+    }
+    const resultImg = document.querySelector("[data-result-img]");
+    if (resultImg) {
+        resultImg.hidden = true;
+        resultImg.removeAttribute("src");
+    }
     showScreen("upload");
 }
 
@@ -748,6 +771,8 @@ async function submitJob() {
     const statusSub = document.querySelector("[data-status-sub]");
     const statusDebug = document.querySelector("[data-status-debug]");
     const resultImg = document.querySelector("[data-result-img]");
+    const resultBeforeImg = document.querySelector("[data-result-before-img]");
+    const resultCompare = document.querySelector("[data-result-compare]");
     const errorText = document.querySelector("[data-error-text]");
     const debugLines = [];
 
@@ -884,6 +909,15 @@ async function submitJob() {
                 state.resultFileName = `dream-wheels-${jobId}.jpg`;
                 resultImg.src = statusData.result_url;
                 resultImg.hidden = false;
+                if (resultBeforeImg && state.files.car?.blob) {
+                    if (state.resultBeforeObjectUrl) {
+                        URL.revokeObjectURL(state.resultBeforeObjectUrl);
+                    }
+                    state.resultBeforeObjectUrl = URL.createObjectURL(state.files.car.blob);
+                    resultBeforeImg.src = state.resultBeforeObjectUrl;
+                    resultBeforeImg.hidden = false;
+                }
+                if (resultCompare) resultCompare.hidden = false;
             }
             const downloadButton = document.querySelector("[data-download-result]");
             if (downloadButton) {

@@ -62,7 +62,16 @@
                 <div class="status-debug" data-status-debug hidden></div>
             </div>
             <div class="result-block" data-result hidden>
-                <img data-result-img hidden alt="AI render" data-i18n-alt="result.imageAlt" style="width:100%;border-radius:12px;margin-bottom:12px;" />
+                <div class="result-compare" data-result-compare hidden>
+                    <section class="compare-panel">
+                        <div class="compare-label" data-i18n="result.before">Before</div>
+                        <img data-result-before-img hidden alt="Original car photo" data-i18n-alt="result.beforeAlt">
+                    </section>
+                    <section class="compare-panel">
+                        <div class="compare-label" data-i18n="result.after">After</div>
+                        <img data-result-img hidden alt="AI render" data-i18n-alt="result.imageAlt">
+                    </section>
+                </div>
                 <div class="result-actions">
                     <button type="button" class="result-action-button" data-download-result data-i18n="actions.download" hidden>
                         Download
@@ -96,6 +105,6 @@
         </footer>
     </main>
 
-    <script src="app.js?v=20260524-short-share" type="module"></script>
+    <script src="app.js?v=20260524-compare-share" type="module"></script>
 </body>
 </html>

@@ -3,6 +3,7 @@
 import html
 import logging
 import re
+from io import BytesIO
 
 import httpx
 from fastapi import APIRouter, HTTPException
@@ -62,6 +63,103 @@ async def _find_completed_job(short_id: str):
     return rows[0]
 
 
+async def _fetch_result_bytes(result_url: str) -> bytes:
+    async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+        resp = await client.get(result_url)
+    if resp.status_code >= 400:
+        raise HTTPException(status_code=502, detail="Result image fetch failed")
+    return resp.content
+
+
+async def _fetch_original_bytes(car_image_url: str | None) -> bytes | None:
+    if not car_image_url:
+        return None
+    if car_image_url.startswith("http://") or car_image_url.startswith("https://"):
+        async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+            resp = await client.get(car_image_url)
+        if resp.status_code >= 400:
+            return None
+        return resp.content
+    try:
+        return await storage.download_bytes(bucket=storage.RAW_BUCKET, path=car_image_url)
+    except storage.StorageError:
+        return None
+
+
+def _draw_contained_image(canvas, source, box):
+    from PIL import ImageOps
+
+    x, y, width, height = box
+    fitted = ImageOps.contain(ImageOps.exif_transpose(source).convert("RGB"), (width, height))
+    offset_x = x + (width - fitted.width) // 2
+    offset_y = y + (height - fitted.height) // 2
+    canvas.paste(fitted, (offset_x, offset_y))
+
+
+def _load_preview_font(size: int):
+    from PIL import ImageFont
+
+    for name in ("DejaVuSans-Bold.ttf", "Arial Bold.ttf", "Arial.ttf"):
+        try:
+            return ImageFont.truetype(name, size)
+        except OSError:
+            continue
+    return ImageFont.load_default()
+
+
+def _make_comparison_preview(original_bytes: bytes | None, result_bytes: bytes) -> bytes:
+    from PIL import Image, ImageDraw
+
+    result = Image.open(BytesIO(result_bytes))
+    original = Image.open(BytesIO(original_bytes)) if original_bytes else result
+
+    canvas_width = 1200
+    canvas_height = 630
+    padding = 34
+    header_height = 82
+    gap = 22
+    label_height = 42
+    panel_width = (canvas_width - padding * 2 - gap) // 2
+    image_height = canvas_height - padding * 2 - header_height - label_height
+
+    canvas = Image.new("RGB", (canvas_width, canvas_height), "#0a0a0b")
+    draw = ImageDraw.Draw(canvas)
+    title_font = _load_preview_font(42)
+    label_font = _load_preview_font(28)
+    brand_font = _load_preview_font(24)
+
+    draw.text((padding, 24), "DREAMWHEELS AI", fill="#e8ff00", font=brand_font)
+    draw.text((padding, 54), "Before / After", fill="#f4f4f5", font=title_font)
+
+    panels = (
+        ("BEFORE", original, padding),
+        ("AFTER", result, padding + panel_width + gap),
+    )
+    for label, image, x in panels:
+        y = padding + header_height
+        draw.rectangle(
+            [x, y, x + panel_width, y + label_height + image_height],
+            fill="#15161a",
+            outline="#34363c",
+            width=2,
+        )
+        draw.text((x + 18, y + 8), label, fill="#a3a3a3", font=label_font)
+        image_y = y + label_height
+        draw.rectangle(
+            [x + 2, image_y, x + panel_width - 2, image_y + image_height - 2],
+            fill="#050506",
+        )
+        _draw_contained_image(
+            canvas,
+            image,
+            (x + 2, image_y, panel_width - 4, image_height - 4),
+        )
+
+    out = BytesIO()
+    canvas.save(out, format="JPEG", quality=88, optimize=True)
+    return out.getvalue()
+
+
 @router.get("/{short_id}", response_class=HTMLResponse)
 async def share_page(short_id: str):
     row = await _find_completed_job(short_id)
@@ -69,6 +167,7 @@ async def share_page(short_id: str):
     result_url = row["output_image_url"]
     page_url = share_url_for_job(job_id)
     original_url = f"{page_url}/original" if row["car_image_url"] else None
+    preview_url = f"{page_url}/preview.jpg"
 
     title = "Dream Wheels AI render"
     description = "Before and after AI wheel visualization."
@@ -77,6 +176,7 @@ async def share_page(short_id: str):
     escaped_page_url = html.escape(page_url, quote=True)
     escaped_result_url = html.escape(result_url, quote=True)
     escaped_original_url = html.escape(original_url, quote=True) if original_url else ""
+    escaped_preview_url = html.escape(preview_url, quote=True)
 
     before_markup = ""
     if escaped_original_url:
@@ -99,11 +199,13 @@ async def share_page(short_id: str):
   <meta property="og:title" content="{escaped_title}">
   <meta property="og:description" content="{escaped_description}">
   <meta property="og:url" content="{escaped_page_url}">
-  <meta property="og:image" content="{escaped_result_url}">
+  <meta property="og:image" content="{escaped_preview_url}">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="{escaped_title}">
   <meta name="twitter:description" content="{escaped_description}">
-  <meta name="twitter:image" content="{escaped_result_url}">
+  <meta name="twitter:image" content="{escaped_preview_url}">
   <style>
     :root {{
       color-scheme: dark;
@@ -123,7 +225,7 @@ async def share_page(short_id: str):
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     }}
     main {{
-      width: min(980px, 100%);
+      width: min(760px, 100%);
       margin: 0 auto;
       padding: 24px 16px 40px;
     }}
@@ -155,7 +257,7 @@ async def share_page(short_id: str):
     }}
     .grid {{
       display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-template-columns: 1fr;
       gap: 16px;
       margin-top: 18px;
     }}
@@ -175,7 +277,7 @@ async def share_page(short_id: str):
     img {{
       display: block;
       width: 100%;
-      aspect-ratio: 4 / 3;
+      aspect-ratio: 16 / 9;
       object-fit: contain;
       background: #050506;
     }}
@@ -191,7 +293,6 @@ async def share_page(short_id: str):
     @media (max-width: 720px) {{
       header {{ display: block; }}
       .job {{ margin-top: 8px; white-space: normal; }}
-      .grid {{ grid-template-columns: 1fr; }}
     }}
   </style>
 </head>
@@ -239,6 +340,25 @@ async def share_original(short_id: str):
         content=content,
         media_type=_content_type_for_path(car_image_url),
         headers={"Cache-Control": "public, max-age=300"},
+    )
+
+
+@router.get("/{short_id}/preview.jpg")
+async def share_preview(short_id: str):
+    row = await _find_completed_job(short_id)
+    original_bytes = await _fetch_original_bytes(row["car_image_url"])
+    result_bytes = await _fetch_result_bytes(row["output_image_url"])
+
+    try:
+        image_bytes = _make_comparison_preview(original_bytes, result_bytes)
+    except Exception as exc:
+        logger.exception(f"❌ Preview render failed for share {short_id}: {exc}")
+        raise HTTPException(status_code=502, detail="Preview render failed") from exc
+
+    return Response(
+        content=image_bytes,
+        media_type="image/jpeg",
+        headers={"Cache-Control": "public, max-age=3600"},
     )
 
 

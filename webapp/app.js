@@ -904,7 +904,8 @@ async function submitJob() {
             statusBlock.hidden = true;
             if (resultImg && statusData.result_url) {
                 state.resultUrl = statusData.result_url;
-                state.shareUrl = statusData.share_url || `${API_BASE_URL}/s/${jobId.slice(0, 8)}`;
+                state.shareUrl =
+                    statusData.share_url || `${API_BASE_URL}/s/${jobId.slice(0, 8)}?v=2`;
                 state.resultDownloadUrl = `${API_BASE_URL}/jobs/${jobId}/download`;
                 state.resultFileName = `dream-wheels-${jobId}.jpg`;
                 resultImg.src = statusData.result_url;

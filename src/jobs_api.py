@@ -380,7 +380,9 @@ async def get_job_status_detailed(job_id: str):
         job_id=job_id,
         status=row["status"],
         result_url=row["output_image_url"],
-        share_url=share_url_for_job(job_id) if row["output_image_url"] else None,
+        share_url=share_url_for_job(job_id, bust_preview_cache=True)
+        if row["output_image_url"]
+        else None,
         error=row["error_message"],
     )
 

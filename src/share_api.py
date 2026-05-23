@@ -17,10 +17,14 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/s", tags=["share"])
 
 SHORT_ID_RE = re.compile(r"^[0-9a-fA-F]{8,36}$")
+SHARE_PREVIEW_VERSION = "2"
 
 
-def share_url_for_job(job_id: str) -> str:
-    return f"{PUBLIC_BASE_URL}/s/{job_id[:8]}"
+def share_url_for_job(job_id: str, *, bust_preview_cache: bool = False) -> str:
+    url = f"{PUBLIC_BASE_URL}/s/{job_id[:8]}"
+    if bust_preview_cache:
+        return f"{url}?v={SHARE_PREVIEW_VERSION}"
+    return url
 
 
 def _content_type_for_path(path: str | None) -> str:

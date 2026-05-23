@@ -502,8 +502,7 @@ async function downloadResult() {
 }
 
 function buildTelegramShareUrl() {
-    const text = `${t("share.text")}\n${state.resultUrl}`;
-    return `https://t.me/share/url?url=${encodeURIComponent(state.resultUrl)}&text=${encodeURIComponent(text)}`;
+    return `https://t.me/share/url?url=${encodeURIComponent(state.resultUrl)}&text=${encodeURIComponent(t("share.text"))}`;
 }
 
 function openTelegramShareUrl() {
@@ -539,7 +538,7 @@ async function shareResult() {
     try {
         const shareData = {
             title: "Dream Wheels AI",
-            text: `${t("share.text")}\n${state.resultUrl}`,
+            text: t("share.text"),
             url: state.resultUrl,
         };
 

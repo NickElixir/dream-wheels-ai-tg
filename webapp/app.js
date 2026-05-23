@@ -72,6 +72,7 @@ const I18N = {
         feedback: {
             label: "How did it turn out?",
             thanks: "Thanks for the feedback!",
+            failed: "Could not save feedback. Please try again.",
         },
         errors: {
             generic: "Something went wrong",
@@ -137,6 +138,7 @@ const I18N = {
         feedback: {
             label: "Как результат?",
             thanks: "Спасибо за оценку!",
+            failed: "Не удалось сохранить оценку. Попробуйте ещё раз.",
         },
         errors: {
             generic: "Что-то пошло не так",
@@ -363,7 +365,10 @@ function resetFlow() {
             btn.classList.remove("selected-like", "selected-dislike");
         });
         const thanks = feedbackBlock.querySelector("[data-feedback-thanks]");
-        if (thanks) thanks.hidden = true;
+        if (thanks) {
+            thanks.textContent = t("feedback.thanks");
+            thanks.hidden = true;
+        }
     }
     document.querySelectorAll("input[data-input]").forEach((i) => (i.value = ""));
     showScreen("upload");
@@ -597,7 +602,8 @@ async function sendFeedback(vote) {
 
     const feedbackBlock = document.querySelector("[data-feedback-block]");
     const thanks = document.querySelector("[data-feedback-thanks]");
-    feedbackBlock.querySelectorAll(".feedback-btn").forEach((btn) => {
+    const feedbackButtons = feedbackBlock.querySelectorAll(".feedback-btn");
+    feedbackButtons.forEach((btn) => {
         btn.disabled = true;
         if (btn.dataset.feedback === vote) {
             btn.classList.add(vote === "like" ? "selected-like" : "selected-dislike");
@@ -607,16 +613,33 @@ async function sendFeedback(vote) {
     haptic("success");
 
     try {
-        await fetch(`${API_BASE_URL}/jobs/${state.jobId}/feedback`, {
+        const resp = await fetch(`${API_BASE_URL}/jobs/${state.jobId}/feedback`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ vote }),
+            body: JSON.stringify({ vote, init_data: HAS_TG ? tg.initData : "" }),
         });
+        if (!resp.ok) {
+            throw new Error(`HTTP ${resp.status}`);
+        }
     } catch (e) {
         console.error("[DW] feedback failed", e);
+        state.voted = false;
+        feedbackButtons.forEach((btn) => {
+            btn.disabled = false;
+            btn.classList.remove("selected-like", "selected-dislike");
+        });
+        if (thanks) {
+            thanks.textContent = t("feedback.failed");
+            thanks.hidden = false;
+        }
+        haptic("warning");
+        return;
     }
 
-    if (thanks) thanks.hidden = false;
+    if (thanks) {
+        thanks.textContent = t("feedback.thanks");
+        thanks.hidden = false;
+    }
 }
 
 function attachFeedbackHandlers() {

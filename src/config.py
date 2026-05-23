@@ -15,6 +15,7 @@ REDIS_URL = os.getenv("REDIS_URL")
 # External APIs
 REVE_API_KEY = os.getenv("REVE_API_KEY")
 BOT_TOKEN = os.getenv("BOT_TOKEN")
+API_INTERNAL_TOKEN = os.getenv("API_INTERNAL_TOKEN")
 
 # Supabase
 SUPABASE_PROJECT_REF = os.getenv("SUPABASE_PROJECT_REF", "qmgyccghsbdpehiybjae")

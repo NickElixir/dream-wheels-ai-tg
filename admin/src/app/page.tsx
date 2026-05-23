@@ -30,6 +30,14 @@ function compactId(id: string) {
   return `${id.slice(0, 8)}...${id.slice(-4)}`;
 }
 
+function statusClass(status: string) {
+  if (status === "completed") return "border-emerald-800 text-emerald-200";
+  if (status === "failed") return "border-red-800 text-red-200";
+  if (status === "processing") return "border-amber-800 text-amber-200";
+  if (status === "queued") return "border-sky-800 text-sky-200";
+  return "border-neutral-700 text-neutral-300";
+}
+
 function numberFormat(value: number) {
   return new Intl.NumberFormat("en-US").format(value);
 }
@@ -83,6 +91,21 @@ function MetricCard({
       </div>
       <div className="mt-3 text-3xl font-semibold text-white">{value}</div>
       {sub ? <div className="mt-2 text-sm text-neutral-400">{sub}</div> : null}
+    </div>
+  );
+}
+
+function UserLabel({
+  username,
+  telegramUserId,
+}: {
+  username: string | null;
+  telegramUserId: string | null;
+}) {
+  return (
+    <div className="flex min-w-32 flex-col gap-1">
+      {username ? <span className="font-sans text-sm text-white">@{username}</span> : null}
+      <span className="font-mono text-xs text-neutral-500">{telegramUserId || "—"}</span>
     </div>
   );
 }
@@ -240,7 +263,68 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
               <h2 className="text-lg font-medium text-white">Recent Jobs</h2>
               <span className="text-sm text-neutral-500">latest 50</span>
             </div>
-            <div className="overflow-x-auto">
+
+            <div className="flex flex-col divide-y divide-neutral-900 md:hidden">
+              {recentJobs.map((job) => (
+                <article key={job.id} className="flex flex-col gap-3 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="font-mono text-xs text-neutral-500">{compactId(job.id)}</div>
+                      <UserLabel username={job.username} telegramUserId={job.telegram_user_id} />
+                    </div>
+                    <span className={`border px-2 py-1 text-xs ${statusClass(job.status)}`}>
+                      {job.status}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <div className="text-xs uppercase tracking-[0.08em] text-neutral-600">
+                        Feedback
+                      </div>
+                      <div className="mt-1 text-neutral-300">{job.feedback || "—"}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs uppercase tracking-[0.08em] text-neutral-600">
+                        Time
+                      </div>
+                      <div className="mt-1 font-mono text-neutral-300">
+                        {formatDuration(job.processing_seconds)}
+                      </div>
+                    </div>
+                  </div>
+
+                  {job.status === "failed" && job.error_message ? (
+                    <div className="border border-red-950 bg-red-950/20 p-3 text-xs text-red-200">
+                      {job.error_message}
+                    </div>
+                  ) : null}
+
+                  <div className="flex items-center justify-between gap-3 text-xs text-neutral-500">
+                    <span className="font-mono">{new Date(job.created_at).toLocaleString("en-US")}</span>
+                    {job.output_image_url ? (
+                      <a
+                        className="text-white underline underline-offset-4"
+                        href={job.output_image_url}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        open
+                      </a>
+                    ) : (
+                      <span>—</span>
+                    )}
+                  </div>
+                </article>
+              ))}
+              {recentJobs.length === 0 ? (
+                <div className="py-10 text-center text-sm text-neutral-500">
+                  No jobs match the current filters
+                </div>
+              ) : null}
+            </div>
+
+            <div className="hidden overflow-x-auto md:block">
               <table className="min-w-full text-left text-sm">
                 <thead className="bg-neutral-900 text-xs uppercase tracking-[0.08em] text-neutral-500">
                   <tr>
@@ -260,15 +344,10 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
                         {compactId(job.id)}
                       </td>
                       <td className="px-4 py-3 font-mono text-xs">
-                        <div className="flex min-w-32 flex-col gap-1">
-                          {job.username ? (
-                            <span className="font-sans text-sm text-white">@{job.username}</span>
-                          ) : null}
-                          <span className="text-neutral-500">{job.telegram_user_id || "—"}</span>
-                        </div>
+                        <UserLabel username={job.username} telegramUserId={job.telegram_user_id} />
                       </td>
                       <td className="px-4 py-3">
-                        <span className="border border-neutral-700 px-2 py-1 text-xs">
+                        <span className={`border px-2 py-1 text-xs ${statusClass(job.status)}`}>
                           {job.status}
                         </span>
                       </td>

@@ -89,21 +89,7 @@ async def _load_inputs_as_b64(job_data: dict) -> tuple[str, str]:
 
 async def _save_render_output(job_id: str, job_data: dict, img_bytes: bytes) -> str:
     """Сохранить рендер в постоянное public-хранилище Supabase results."""
-    url = await storage.upload_result_image(job_id=job_id, data=img_bytes)
-
-    if job_data.get("source") == "webapp":
-        # Авто-уборка raw — больше не нужен после успешного рендера.
-        # Не падаем если удалить не удалось — это housekeeping.
-        for path_key in ("car_storage_path", "wheel_storage_path"):
-            raw_path = job_data.get(path_key)
-            if not raw_path:
-                continue
-            try:
-                await storage.delete_object(bucket=storage.RAW_BUCKET, path=raw_path)
-            except storage.StorageError as exc:
-                logger.warning(f"⚠️  raw cleanup {raw_path} не удался: {exc}")
-
-    return url
+    return await storage.upload_result_image(job_id=job_id, data=img_bytes)
 
 
 async def process_jobs_loop():

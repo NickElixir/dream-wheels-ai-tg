@@ -98,6 +98,27 @@ h1 {
     margin-bottom: 8px;
 }
 
+.paste-hint {
+    margin-top: -8px;
+    color: var(--text-subtle);
+    font-size: 12px;
+}
+
+.paste-status {
+    padding: 10px 12px;
+    border: 1px solid rgba(0, 229, 160, 0.34);
+    border-radius: 12px;
+    background: rgba(0, 229, 160, 0.08);
+    color: var(--green);
+    font-size: 13px;
+}
+
+.paste-status.error {
+    border-color: rgba(255, 68, 68, 0.34);
+    background: rgba(255, 68, 68, 0.08);
+    color: #ffb0b0;
+}
+
 .dropzone {
     display: flex;
     flex-direction: column;

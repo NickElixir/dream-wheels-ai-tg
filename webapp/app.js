@@ -30,9 +30,13 @@ const I18N = {
         upload: {
             title: "Upload your car and wheel photos",
             hint: "Full side view of the car, front view of the wheel. JPG or PNG, up to 10 MB.",
+            pasteHint: "Tip: copy an image, select a slot, then press Ctrl+V.",
             carPhoto: "Car photo",
             wheelPhoto: "Wheel photo",
             choose: "Tap to choose",
+            pastedCar: "Pasted image as car photo",
+            pastedWheel: "Pasted image as wheel photo",
+            pasteNoImage: "Clipboard does not contain an image",
             replaceCar: "Replace car",
             replaceWheel: "Replace wheel",
             carPreviewAlt: "Car preview",
@@ -96,9 +100,13 @@ const I18N = {
         upload: {
             title: "Загрузи фото машины и диска",
             hint: "Машина целиком сбоку, диск анфас. JPG или PNG, до 10 MB.",
+            pasteHint: "Можно скопировать фото, выбрать слот и нажать Ctrl+V.",
             carPhoto: "Фото машины",
             wheelPhoto: "Фото диска",
             choose: "Нажми, чтобы выбрать",
+            pastedCar: "Вставили изображение как фото машины",
+            pastedWheel: "Вставили изображение как фото диска",
+            pasteNoImage: "В буфере обмена нет изображения",
             replaceCar: "Заменить машину",
             replaceWheel: "Заменить диск",
             carPreviewAlt: "Превью машины",
@@ -190,6 +198,7 @@ const SCREENS = ["upload", "result"];
 const state = {
     screen: "upload",
     files: { car: null, wheel: null },
+    pasteTarget: "car",
     jobId: null,
     resultUrl: null,
     resultDownloadUrl: null,
@@ -337,6 +346,7 @@ function resetFlow() {
     state.submitting = false;
     state.voted = false;
     state.files = { car: null, wheel: null };
+    state.pasteTarget = "car";
     state.jobId = null;
     state.resultUrl = null;
     state.resultDownloadUrl = null;
@@ -377,6 +387,12 @@ function resetFlow() {
 /* ---------- File handling ---------- */
 
 function attachFileHandlers() {
+    document.querySelectorAll("[data-upload-zone]").forEach((zone) => {
+        zone.addEventListener("click", () => {
+            setPasteTarget(zone.dataset.uploadZone);
+        });
+    });
+
     document.querySelectorAll("input[data-input]").forEach((input) => {
         const kind = input.dataset.input;
         input.addEventListener("change", (e) => {
@@ -389,6 +405,7 @@ function attachFileHandlers() {
     document.querySelectorAll("[data-clear]").forEach((btn) => {
         btn.addEventListener("click", () => {
             const kind = btn.dataset.clear;
+            setPasteTarget(kind);
             state.files[kind] = null;
             const input = document.querySelector(`input[data-input="${kind}"]`);
             if (input) input.value = "";
@@ -399,9 +416,61 @@ function attachFileHandlers() {
             refreshButtonsForScreen();
         });
     });
+
+    document.addEventListener("paste", handlePaste);
+}
+
+function setPasteTarget(kind) {
+    if (kind !== "car" && kind !== "wheel") return;
+    state.pasteTarget = kind;
+}
+
+function nextPasteTarget() {
+    if (!state.files.car?.blob) return "car";
+    if (!state.files.wheel?.blob) return "wheel";
+    return state.pasteTarget || "wheel";
+}
+
+function showPasteStatus(message, isError = false) {
+    const status = document.querySelector("[data-paste-status]");
+    if (!status) return;
+    status.hidden = false;
+    status.textContent = message;
+    status.classList.toggle("error", isError);
+    clearTimeout(showPasteStatus.timer);
+    showPasteStatus.timer = setTimeout(() => {
+        status.hidden = true;
+    }, 2400);
+}
+
+function imageFileFromPasteEvent(event) {
+    const items = Array.from(event.clipboardData?.items || []);
+    for (const item of items) {
+        if (item.kind === "file" && item.type.startsWith("image/")) {
+            return item.getAsFile();
+        }
+    }
+    return null;
+}
+
+function handlePaste(event) {
+    if (state.screen !== "upload") return;
+    const file = imageFileFromPasteEvent(event);
+    if (!file) {
+        showPasteStatus(t("upload.pasteNoImage"), true);
+        return;
+    }
+    event.preventDefault();
+    const kind = nextPasteTarget();
+    const ext = (file.type.split("/")[1] || "png").replace("jpeg", "jpg");
+    const namedFile = new File([file], `pasted-${kind}.${ext}`, { type: file.type });
+    setPasteTarget(kind === "car" ? "wheel" : "car");
+    handleFileSelected(kind, namedFile);
+    showPasteStatus(t(kind === "car" ? "upload.pastedCar" : "upload.pastedWheel"));
 }
 
 function handleFileSelected(kind, file) {
+    setPasteTarget(kind);
     // iOS Telegram WebView теряет File reference при переходах между экранами,
     // поэтому читаем содержимое в Blob сразу и храним его — Blob можно передать
     // в FormData точно так же как File. Параллельно делаем data-URL preview.

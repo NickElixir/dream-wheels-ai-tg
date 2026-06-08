@@ -401,6 +401,28 @@ h1 {
     font-size: 11px;
 }
 
+.footer-row,
+.legal-links {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.legal-links {
+    margin-top: 8px;
+}
+
+.legal-links a {
+    color: var(--text-muted);
+    text-decoration: none;
+}
+
+.legal-links a:active {
+    opacity: 0.65;
+}
+
 .dot {
     margin: 0 6px;
 }

@@ -94,6 +94,12 @@ const I18N = {
         footer: {
             notTelegram: "Not in Telegram",
         },
+        legal: {
+            offer: "Offer",
+            refund: "Refunds",
+            privacy: "Privacy",
+            seller: "Seller",
+        },
     },
     ru: {
         steps: {
@@ -166,6 +172,12 @@ const I18N = {
         },
         footer: {
             notTelegram: "Не в Telegram",
+        },
+        legal: {
+            offer: "Оферта",
+            refund: "Возврат",
+            privacy: "ПДн",
+            seller: "Реквизиты",
         },
     },
 };

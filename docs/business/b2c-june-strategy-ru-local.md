@@ -206,16 +206,16 @@ B2B2C Pro-модель выносим отдельно: там можно буд
 | `reve_credit_usd` | `$10 / 7500 = $0.001333` | Цена одного Reve API credit из кабинета |
 | `reve_remix_fast_credits` | `5` | Быстрая попытка Remix |
 | `reve_remix_credits` | `30` | Базовая попытка Remix |
-| `api_cost_attempt` | `dynamic_avg` | Средняя стоимость одной попытки генерации |
-| `attempts_per_success` | TBD | Среднее число попыток на один успешный результат |
-| `technical_failure_rate` | TBD | Доля jobs, где пользователь не получил результат |
-| `payment_fee_rate` | TBD | Комиссия Robokassa |
-| `payment_fee_fixed` | TBD | Фиксированная комиссия, если есть |
-| `infra_monthly` | TBD | Render/Supabase/Redis/Storage в месяц |
-| `paid_renders_month` | TBD | Ожидаемое число платных successful renders |
-| `support_buffer_render` | TBD | Буфер на ручную поддержку/возвраты на один render |
-| `free_trial_renders` | TBD | Сколько бесплатных renders готовы оплатить в июне |
-| `refund_rate` | TBD | Доля оплат с возвратом |
+| `api_cost_attempt` | `$0.040` | Средняя стоимость одной попытки генерации: текущий backend использует обычный Reve Remix |
+| `attempts_per_success` | `2.0` | Грубая оценка вверх до теста 30-50 пар |
+| `technical_failure_rate` | `15%` | Грубая оценка вверх |
+| `payment_fee_rate` | `5%` | Грубая оценка вверх до финального тарифа Robokassa |
+| `payment_fee_fixed` | `0 ₽` | Если Robokassa добавит фиксированную часть, обновить |
+| `infra_monthly` | `3000 ₽` | Грубый резерв на Render/Supabase/Redis/Storage |
+| `paid_renders_month` | `1000` | Плановая база для распределения infra cost |
+| `support_buffer_render` | `5 ₽` | Резерв на поддержку и спорные случаи |
+| `free_trial_renders` | `100` | Стартовый месячный cap бесплатных renders |
+| `refund_rate` | `5%` | Грубая оценка вверх |
 
 ### 5.1.1 Reve 1.1 planning cost
 
@@ -227,8 +227,8 @@ B2B2C Pro-модель выносим отдельно: там можно буд
 | `remix` | 30 | `$0.0400` | Основной quality baseline для B2C |
 
 Для B2C в checkout не показываем пользователю “модель” или “режим”. Он покупает
-render credits, а backend выбирает оптимальный пайплайн. В unit-экономике B2C
-считаем среднее:
+render credits, а backend использует текущий стабильный пайплайн. На 2026-06-09
+в коде используется обычный `reve_remix`, не `remix_fast`.
 
 ```text
 api_cost_attempt_avg =
@@ -240,12 +240,12 @@ api_cost_attempt_avg =
 Начальная planning-гипотеза до тестов:
 
 ```text
-share_remix_fast = 70%
-share_remix = 30%
+share_remix_fast = 0%
+share_remix = 100%
 share_fallback = 0%
 
 api_cost_attempt_avg =
-  0.70 * 0.0067 + 0.30 * 0.0400 = $0.0167
+  1.00 * 0.0400 = $0.0400
 ```
 
 При курсе `usd_rub`:
@@ -256,6 +256,18 @@ api_cost_attempt_rub = api_cost_attempt_avg * usd_rub
 
 Эта гипотеза должна быть заменена фактом после 30-50 тестовых генераций и далее
 обновляться раз в месяц по production usage.
+
+Грубый расчет вверх для старта:
+
+```text
+usd_rub = 100
+api_cost_attempt_rub = 0.0400 * 100 = 4 ₽
+attempts_per_success = 2.0
+api_cost_success = 8 ₽
+infra_cost_per_render = 3000 / 1000 = 3 ₽
+support_buffer_render = 5 ₽
+cogs_per_success = 16 ₽
+```
 
 ### 5.2 Формулы
 
@@ -445,10 +457,22 @@ Founder Pass может быть гораздо агрессивнее.
 | Пакет | Роль | Цена | Credits | Условие запуска |
 | --- | --- | ---: | ---: | --- |
 | Free Trial | Дать magic moment | 0 ₽ | 1 | Только если есть budget cap |
-| Start | Первый платный шаг | TBD | 3-5 | Должен иметь положительную маржу |
+| Start | Первый платный шаг | 100 ₽ | 3 | Должен иметь положительную маржу |
 | Founder Pass | Июньская предоплата | 500 ₽ | TBD | Только с hard cap |
-| Pro | Для активного выбора дисков | TBD | 8-15 | Не должен быть дешевле себестоимости |
-| Master | Не нужен в первый запуск | TBD | TBD | Добавить позже после данных |
+| Pro | Для активного выбора дисков | 499 ₽ | 20 | Не должен быть дешевле себестоимости |
+| Master | Не нужен в первый запуск | 990 ₽ | 50 | Добавить позже после данных |
+
+При грубых вводных выше:
+
+| Пакет | Revenue after fee | Package COGS | Contribution margin | Margin |
+| --- | ---: | ---: | ---: | ---: |
+| Start: 100 ₽ / 3 credits | 95 ₽ | 48 ₽ | 47 ₽ | 47% |
+| Pro: 499 ₽ / 20 credits | 474 ₽ | 320 ₽ | 154 ₽ | 31% |
+| Master: 990 ₽ / 50 credits | 941 ₽ | 800 ₽ | 141 ₽ | 14% |
+
+Вывод: Start можно делать дешевым entry-пакетом. Pro выглядит рабочим. Master
+при текущих грубых вводных лучше не продвигать активно до фактического
+`attempts_per_success`.
 
 Рекомендация для июня:
 

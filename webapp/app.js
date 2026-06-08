@@ -373,7 +373,13 @@ function renderCabinet() {
     if (state.history.length === 0) {
         const empty = document.createElement("div");
         empty.className = "history-empty";
-        empty.textContent = t("cabinet.emptyHistory");
+        const icon = document.createElement("span");
+        icon.className = "history-empty-icon";
+        icon.setAttribute("aria-hidden", "true");
+        icon.textContent = "🖼️";
+        const text = document.createElement("span");
+        text.textContent = t("cabinet.emptyHistory");
+        empty.append(icon, text);
         historyList.appendChild(empty);
         return;
     }

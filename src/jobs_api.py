@@ -19,6 +19,7 @@ from pydantic import BaseModel, field_validator
 from src import db, redis_client, storage
 from src.auth import InitDataInvalid, parse_init_data
 from src.rate_limit import enforce_rate_limit
+from src.users_service import ensure_user
 
 logger = logging.getLogger(__name__)
 
@@ -86,22 +87,6 @@ def _download_filename(job_id: str, content_type: str | None) -> str:
     return f"dream-wheels-{job_id}.{ext}"
 
 
-async def _ensure_user(telegram_user_id: int) -> int:
-    """Найти или создать users.id по telegram_user_id."""
-    pool = db.get_pool()
-    async with pool.acquire() as conn:
-        user_id = await conn.fetchval(
-            "SELECT id FROM users WHERE telegram_user_id = $1",
-            telegram_user_id,
-        )
-        if not user_id:
-            user_id = await conn.fetchval(
-                "INSERT INTO users (telegram_user_id) VALUES ($1) RETURNING id",
-                telegram_user_id,
-            )
-    return user_id
-
-
 @router.post("", response_model=JobCreateResponse)
 async def create_job(request: JobCreateRequest):
     """Создание задачи из бота — приходят Telegram file URL'ы."""
@@ -121,7 +106,7 @@ async def create_job(request: JobCreateRequest):
     rds = redis_client.get_client()
 
     try:
-        user_id = await _ensure_user(request.telegram_user_id)
+        user_id = await ensure_user(request.telegram_user_id)
         async with pool.acquire() as conn:
             await conn.execute(
                 """
@@ -243,7 +228,7 @@ async def upload_job(
         raise HTTPException(status_code=502, detail="Storage upload failed") from exc
 
     try:
-        user_id = await _ensure_user(telegram_user_id)
+        user_id = await ensure_user(telegram_user_id)
         pool = db.get_pool()
         async with pool.acquire() as conn:
             await conn.execute(

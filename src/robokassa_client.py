@@ -65,13 +65,20 @@ def build_payment_url(
     *,
     amount_rub: str,
     invoice_id: int,
-    preorder_id: str,
-    email: str,
+    preorder_id: str | None = None,
+    payment_id: str | None = None,
+    email: str | None = None,
     description: str,
 ) -> str:
     merchant_login, password1, _ = _required_config()
     amount = format_amount(amount_rub)
-    shp_params = {"Shp_preorder_id": preorder_id}
+    shp_params = {}
+    if preorder_id:
+        shp_params["Shp_preorder_id"] = preorder_id
+    if payment_id:
+        shp_params["Shp_payment_id"] = payment_id
+    if not shp_params:
+        raise ValueError("preorder_id or payment_id is required")
     signature = _md5(
         f"{merchant_login}:{amount}:{invoice_id}:{password1}{_shp_signature_tail(shp_params)}"
     )
@@ -80,11 +87,12 @@ def build_payment_url(
         "OutSum": amount,
         "InvId": str(invoice_id),
         "Description": description,
-        "Email": email,
         "Culture": "ru",
         "SignatureValue": signature,
         **shp_params,
     }
+    if email:
+        query["Email"] = email
     if ROBOKASSA_IS_TEST:
         query["IsTest"] = "1"
     return f"{ROBOKASSA_PAYMENT_URL}?{urlencode(query)}"

@@ -53,3 +53,22 @@ def test_preorder_returns_disabled_when_payments_off():
     r = client.post("/payments/preorders", json={"email": "user@example.com"})
     assert r.status_code == 503
     assert r.json()["detail"] == "payments disabled"
+
+
+def test_topup_rejects_amount_below_minimum():
+    """Сумма валидируется до флага PAYMENTS_ENABLED и похода в БД."""
+    r = client.post(
+        "/payments/topups",
+        json={"amount_rub": "99.00", "telegram_user_id": 1},
+    )
+    assert r.status_code == 422
+
+
+def test_topup_returns_disabled_when_payments_off():
+    """Новый contract тоже закрыт флагом PAYMENTS_ENABLED по умолчанию."""
+    r = client.post(
+        "/payments/topups",
+        json={"amount_rub": "200.00", "telegram_user_id": 1, "source_screen": "cabinet"},
+    )
+    assert r.status_code == 503
+    assert r.json()["detail"] == "payments disabled"

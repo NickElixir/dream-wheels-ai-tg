@@ -20,6 +20,15 @@ function tgSupports(version) {
 const SUPPORTS_BACK_BUTTON = tgSupports("6.1");
 const SUPPORTS_HAPTIC = tgSupports("6.1");
 const SUPPORTS_DOWNLOAD_FILE = tgSupports("8.0") && typeof tg?.downloadFile === "function";
+const PRICING_VERSION = "2026-06-balance-v1";
+const TOPUP_MIN_AMOUNT = 100;
+const TOPUP_MAX_AMOUNT = 3000;
+const TOPUP_TIERS = [
+    { minAmount: 1000, rubPerCredit: 1000 / 45 },
+    { minAmount: 500, rubPerCredit: 25 },
+    { minAmount: 200, rubPerCredit: 200 / 7 },
+    { minAmount: 100, rubPerCredit: 100 / 3 },
+];
 
 const I18N = {
     en: {
@@ -106,6 +115,9 @@ const I18N = {
             title: "My Dream Wheels AI",
             credits: "credits",
             packages: "Packages",
+            topUp: "Top up balance",
+            customAmount: "Custom amount",
+            pay: "Pay",
             history: "Render history",
             latest: "latest 10",
             support: "Support",
@@ -115,6 +127,9 @@ const I18N = {
             paymentFailed: "Payment failed",
             paymentNote: "Payment opens through Robokassa. Credits are added after confirmation.",
             paymentSetup: "Robokassa checkout will be enabled after store activation.",
+            topupMeta: "{credits} credits · 30 days",
+            topupPreview: "{credits} credits for {amount} ₽ · valid for 30 days",
+            topupRange: "Enter {min}–{max} ₽",
             emptyHistory: "Completed renders will appear here.",
             openCabinet: "Open cabinet",
         },
@@ -214,6 +229,9 @@ const I18N = {
             title: "Мой Dream Wheels AI",
             credits: "credits",
             packages: "Пакеты",
+            topUp: "Пополнить баланс",
+            customAmount: "Своя сумма",
+            pay: "Оплатить",
             history: "История рендеров",
             latest: "последние 10",
             support: "Поддержка",
@@ -223,6 +241,9 @@ const I18N = {
             paymentFailed: "Оплата не прошла",
             paymentNote: "Оплата откроется через Robokassa. Credits начисляются после подтверждения.",
             paymentSetup: "Robokassa checkout включим после активации магазина.",
+            topupMeta: "{credits} credits · 30 дней",
+            topupPreview: "{credits} credits за {amount} ₽ · срок действия 30 дней",
+            topupRange: "Введите {min}–{max} ₽",
             emptyHistory: "Завершенные рендеры появятся здесь.",
             openCabinet: "Открыть кабинет",
         },
@@ -251,6 +272,13 @@ const locale = detectLocale();
 
 function t(key) {
     return key.split(".").reduce((value, part) => value?.[part], I18N[locale]) ?? key;
+}
+
+function formatTemplate(key, values) {
+    return Object.entries(values).reduce(
+        (text, [name, value]) => text.replaceAll(`{${name}}`, String(value)),
+        t(key)
+    );
 }
 
 function applyTranslations() {
@@ -293,6 +321,7 @@ const state = {
     voted: false,
     balance: 0,
     paymentStatus: "ready",
+    lastTopUpIntent: null,
     history: [],
 };
 
@@ -356,6 +385,60 @@ function paymentStatusText() {
     return t("cabinet.paymentReady");
 }
 
+function normalizeTopUpAmount(amount) {
+    const parsedAmount = Number(amount);
+    if (!Number.isFinite(parsedAmount)) return TOPUP_MIN_AMOUNT;
+    return Math.min(TOPUP_MAX_AMOUNT, Math.max(TOPUP_MIN_AMOUNT, Math.round(parsedAmount)));
+}
+
+function calculateTopUpCredits(amount) {
+    const normalizedAmount = normalizeTopUpAmount(amount);
+    const tier =
+        TOPUP_TIERS.find((item) => normalizedAmount >= item.minAmount) ??
+        TOPUP_TIERS[TOPUP_TIERS.length - 1];
+    return Math.max(1, Math.floor(normalizedAmount / tier.rubPerCredit));
+}
+
+function buildTopUpIntent(amount, credits, sourceScreen = "cabinet") {
+    return {
+        amount_rub: normalizeTopUpAmount(amount),
+        credits_granted: Number(credits),
+        pricing_version: PRICING_VERSION,
+        source_screen: sourceScreen,
+    };
+}
+
+function renderCustomTopUpPreview() {
+    const input = document.querySelector("[data-custom-topup]");
+    const preview = document.querySelector("[data-custom-topup-preview]");
+    if (!input || !preview) return;
+
+    const rawAmount = Number(input.value);
+    if (!Number.isFinite(rawAmount) || rawAmount < TOPUP_MIN_AMOUNT || rawAmount > TOPUP_MAX_AMOUNT) {
+        preview.textContent = formatTemplate("cabinet.topupRange", {
+            min: TOPUP_MIN_AMOUNT,
+            max: TOPUP_MAX_AMOUNT,
+        });
+        return;
+    }
+
+    const amount = normalizeTopUpAmount(rawAmount);
+    const credits = calculateTopUpCredits(amount);
+    preview.textContent = formatTemplate("cabinet.topupPreview", { amount, credits });
+}
+
+function startTopUp(intent) {
+    state.paymentStatus = "pending";
+    state.lastTopUpIntent = intent;
+    renderCabinet();
+    haptic("light");
+    setTimeout(() => {
+        if (state.screen !== "cabinet") return;
+        state.paymentStatus = "ready";
+        renderCabinet();
+    }, 1800);
+}
+
 function renderCabinet() {
     const balanceValue = document.querySelector("[data-balance-value]");
     if (balanceValue) balanceValue.textContent = String(state.balance);
@@ -365,6 +448,17 @@ function renderCabinet() {
         paymentStatus.textContent = paymentStatusText();
         paymentStatus.dataset.status = state.paymentStatus;
     }
+
+    document.querySelectorAll("[data-topup-amount]").forEach((button) => {
+        const amount = normalizeTopUpAmount(button.dataset.topupAmount);
+        const credits = Number(button.dataset.topupCredits || calculateTopUpCredits(amount));
+        const name = button.querySelector(".package-name");
+        const meta = button.querySelector("[data-topup-meta]");
+        if (name) name.textContent = `${amount} ₽`;
+        if (meta) meta.textContent = formatTemplate("cabinet.topupMeta", { credits });
+    });
+
+    renderCustomTopUpPreview();
 
     const historyList = document.querySelector("[data-history-list]");
     if (!historyList) return;
@@ -430,18 +524,28 @@ function attachCabinetHandlers() {
         });
     }
 
-    document.querySelectorAll("[data-package]").forEach((button) => {
+    document.querySelectorAll("[data-topup-amount]").forEach((button) => {
         button.addEventListener("click", () => {
-            state.paymentStatus = "pending";
-            renderCabinet();
-            haptic("light");
-            setTimeout(() => {
-                if (state.screen !== "cabinet") return;
-                state.paymentStatus = "ready";
-                renderCabinet();
-            }, 1800);
+            const amount = normalizeTopUpAmount(button.dataset.topupAmount);
+            const credits = Number(button.dataset.topupCredits || calculateTopUpCredits(amount));
+            startTopUp(buildTopUpIntent(amount, credits, "cabinet_quick_amount"));
         });
     });
+
+    const customInput = document.querySelector("[data-custom-topup]");
+    if (customInput) {
+        customInput.addEventListener("input", renderCustomTopUpPreview);
+    }
+
+    const customButton = document.querySelector("[data-custom-topup-button]");
+    if (customButton && customInput) {
+        customButton.addEventListener("click", () => {
+            const amount = normalizeTopUpAmount(customInput.value);
+            customInput.value = String(amount);
+            const credits = calculateTopUpCredits(amount);
+            startTopUp(buildTopUpIntent(amount, credits, "cabinet_custom_amount"));
+        });
+    }
 }
 
 /* ---------- Main button (native or fallback) ---------- */

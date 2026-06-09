@@ -116,34 +116,59 @@
 
             <section class="panel">
                 <div class="panel-heading">
-                    <h2 data-i18n="cabinet.packages">Packages</h2>
+                    <h2 data-i18n="cabinet.topUp">Top up balance</h2>
                     <span class="payment-status" data-payment-status>—</span>
                 </div>
-                <div class="package-grid">
-                    <button type="button" class="package-card" data-package="start">
-                        <span class="package-icon" aria-hidden="true">⚡</span>
+                <div class="topup-grid" data-topup-grid>
+                    <button type="button" class="topup-card" data-topup-amount="100" data-topup-credits="3">
+                        <span class="topup-icon" aria-hidden="true">⚡</span>
                         <span class="package-main">
-                            <span class="package-name" data-i18n="packages.start">Start</span>
-                            <span class="package-meta" data-i18n="packages.startMeta">3 credits · 30 days</span>
+                            <span class="package-name">100 ₽</span>
+                            <span class="package-meta" data-topup-meta>3 credits · 30 days</span>
                         </span>
-                        <span class="package-price">100 ₽</span>
                     </button>
-                    <button type="button" class="package-card" data-package="pro">
-                        <span class="package-icon" aria-hidden="true">🏁</span>
+                    <button type="button" class="topup-card" data-topup-amount="200" data-topup-credits="7">
+                        <span class="topup-icon" aria-hidden="true">🏁</span>
                         <span class="package-main">
-                            <span class="package-name" data-i18n="packages.pro">Pro</span>
-                            <span class="package-meta" data-i18n="packages.proMeta">20 credits · 30 days</span>
+                            <span class="package-name">200 ₽</span>
+                            <span class="package-meta" data-topup-meta>7 credits · 30 days</span>
                         </span>
-                        <span class="package-price">499 ₽</span>
                     </button>
-                    <button type="button" class="package-card" data-package="master">
-                        <span class="package-icon" aria-hidden="true">👑</span>
+                    <button type="button" class="topup-card" data-topup-amount="500" data-topup-credits="20">
+                        <span class="topup-icon" aria-hidden="true">💎</span>
                         <span class="package-main">
-                            <span class="package-name" data-i18n="packages.master">Master</span>
-                            <span class="package-meta" data-i18n="packages.masterMeta">50 credits · 30 days</span>
+                            <span class="package-name">500 ₽</span>
+                            <span class="package-meta" data-topup-meta>20 credits · 30 days</span>
                         </span>
-                        <span class="package-price">990 ₽</span>
                     </button>
+                    <button type="button" class="topup-card" data-topup-amount="1000" data-topup-credits="45">
+                        <span class="topup-icon" aria-hidden="true">👑</span>
+                        <span class="package-main">
+                            <span class="package-name">1000 ₽</span>
+                            <span class="package-meta" data-topup-meta>45 credits · 30 days</span>
+                        </span>
+                    </button>
+                </div>
+                <div class="custom-topup">
+                    <label class="custom-topup-label" for="custom-topup-amount" data-i18n="cabinet.customAmount">
+                        Custom amount
+                    </label>
+                    <div class="custom-topup-row">
+                        <input
+                            id="custom-topup-amount"
+                            type="number"
+                            inputmode="numeric"
+                            min="100"
+                            max="3000"
+                            step="50"
+                            value="200"
+                            data-custom-topup
+                        />
+                        <button type="button" class="custom-topup-button" data-custom-topup-button>
+                            <span data-i18n="cabinet.pay">Pay</span>
+                        </button>
+                    </div>
+                    <p class="custom-topup-preview" data-custom-topup-preview>—</p>
                 </div>
                 <p class="panel-note" data-i18n="cabinet.paymentNote">
                     Payment opens through Robokassa. Credits are added after confirmation.

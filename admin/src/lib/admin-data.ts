@@ -42,7 +42,34 @@ export type RecentJob = {
   username: string | null;
 };
 
+export type CreditLedgerSummary = {
+  creditsGranted: number;
+  creditsReserved: number;
+  creditsFinalized: number;
+  creditsRefunded: number;
+  events: number;
+};
+
+export type CreditLedgerEvent = {
+  id: string;
+  event_type: string;
+  credits_delta: number;
+  balance_after: number | null;
+  related_job_id: string | null;
+  related_payment_id: string | null;
+  created_at: string;
+  telegram_user_id: string | null;
+  username: string | null;
+};
+
+export type CreditLedgerData = {
+  available: boolean;
+  summary: CreditLedgerSummary;
+  recentEvents: CreditLedgerEvent[];
+};
+
 type SummaryRow = Record<keyof SummaryMetric, string | number | null>;
+type CreditLedgerSummaryRow = Record<keyof CreditLedgerSummary, string | number | null>;
 
 function toInt(value: string | number | null | undefined) {
   return Number(value ?? 0);
@@ -95,10 +122,120 @@ function buildWhere(filters: DashboardFilters) {
   };
 }
 
+async function tableExists(tableName: string) {
+  const rows = await query<{ exists: boolean }>(
+    `
+    SELECT EXISTS (
+      SELECT 1
+      FROM information_schema.tables
+      WHERE table_schema = 'public'
+        AND table_name = $1
+    ) AS exists
+    `,
+    [tableName],
+  );
+
+  return rows[0]?.exists === true;
+}
+
+function buildLedgerWhere(filters: DashboardFilters) {
+  const { days, user } = normalizeFilters(filters);
+  const clauses = ["cl.created_at >= NOW() - ($1::int * INTERVAL '1 day')"];
+  const params: unknown[] = [days];
+
+  if (user) {
+    params.push(`%${user}%`);
+    clauses.push(
+      `(u.telegram_user_id::text ILIKE $${params.length}
+        OR u.username ILIKE $${params.length})`,
+    );
+  }
+
+  return {
+    whereSql: clauses.join(" AND "),
+    params,
+  };
+}
+
+async function getCreditLedgerData(filters: DashboardFilters): Promise<CreditLedgerData> {
+  const available = await tableExists("credit_ledger");
+  const emptySummary: CreditLedgerSummary = {
+    creditsGranted: 0,
+    creditsReserved: 0,
+    creditsFinalized: 0,
+    creditsRefunded: 0,
+    events: 0,
+  };
+
+  if (!available) {
+    return {
+      available: false,
+      summary: emptySummary,
+      recentEvents: [],
+    };
+  }
+
+  const { whereSql, params } = buildLedgerWhere(filters);
+  const [summaryRows, recentEvents] = await Promise.all([
+    query<CreditLedgerSummaryRow>(
+      `
+      SELECT
+        COALESCE(SUM(cl.credits_delta) FILTER (WHERE cl.event_type IN ('purchase_grant', 'trial_grant')), 0)::int
+          AS "creditsGranted",
+        ABS(COALESCE(SUM(cl.credits_delta) FILTER (WHERE cl.event_type = 'job_reserve'), 0))::int
+          AS "creditsReserved",
+        COUNT(*) FILTER (WHERE cl.event_type = 'job_finalize')::int
+          AS "creditsFinalized",
+        COALESCE(SUM(cl.credits_delta) FILTER (WHERE cl.event_type = 'job_refund'), 0)::int
+          AS "creditsRefunded",
+        COUNT(*)::int AS events
+      FROM credit_ledger cl
+      LEFT JOIN users u ON u.id = cl.user_id
+      WHERE ${whereSql}
+      `,
+      params,
+    ),
+    query<CreditLedgerEvent>(
+      `
+      SELECT
+        cl.id::text,
+        cl.event_type,
+        cl.credits_delta::int,
+        cl.balance_after::int,
+        cl.related_job_id::text,
+        cl.related_payment_id::text,
+        cl.created_at::text,
+        u.telegram_user_id::text,
+        u.username
+      FROM credit_ledger cl
+      LEFT JOIN users u ON u.id = cl.user_id
+      WHERE ${whereSql}
+      ORDER BY cl.created_at DESC
+      LIMIT 50
+      `,
+      params,
+    ),
+  ]);
+
+  const row = summaryRows[0] || {};
+
+  return {
+    available: true,
+    summary: {
+      creditsGranted: toInt(row.creditsGranted),
+      creditsReserved: toInt(row.creditsReserved),
+      creditsFinalized: toInt(row.creditsFinalized),
+      creditsRefunded: toInt(row.creditsRefunded),
+      events: toInt(row.events),
+    },
+    recentEvents,
+  };
+}
+
 export async function getDashboardData(filters: DashboardFilters) {
   const { days, whereSql, params } = buildWhere(filters);
 
-  const [summaryRows, jobsByDay, recentJobs] = await Promise.all([
+  const [summaryRows, jobsByDay, recentJobs, creditLedger] = await Promise.all([
     query<SummaryRow>(
       `
       SELECT
@@ -153,6 +290,7 @@ export async function getDashboardData(filters: DashboardFilters) {
       `,
       params,
     ),
+    getCreditLedgerData(filters),
   ]);
 
   const row = summaryRows[0] || {};
@@ -171,5 +309,5 @@ export async function getDashboardData(filters: DashboardFilters) {
         : toInt(row.avgProcessingSeconds),
   };
 
-  return { summary, jobsByDay, recentJobs, days };
+  return { summary, jobsByDay, recentJobs, creditLedger, days };
 }

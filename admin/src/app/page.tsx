@@ -39,6 +39,16 @@ function statusClass(status: string) {
   return "border-neutral-700 text-neutral-300";
 }
 
+function ledgerEventClass(eventType: string) {
+  if (eventType === "purchase_grant" || eventType === "trial_grant") {
+    return "border-emerald-800 text-emerald-200";
+  }
+  if (eventType === "job_reserve") return "border-amber-800 text-amber-200";
+  if (eventType === "job_refund") return "border-sky-800 text-sky-200";
+  if (eventType === "job_finalize") return "border-neutral-700 text-neutral-300";
+  return "border-neutral-700 text-neutral-300";
+}
+
 function numberFormat(value: number) {
   return new Intl.NumberFormat("en-US").format(value);
 }
@@ -154,7 +164,7 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
     );
   }
 
-  const { summary, jobsByDay, recentJobs } = dashboardData;
+  const { summary, jobsByDay, recentJobs, creditLedger } = dashboardData;
 
   const likeRate = formatPercent(summary.likes, summary.rated);
   const completionRate = formatPercent(summary.completed, summary.total);
@@ -437,6 +447,123 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
               </table>
             </div>
           </div>
+        </section>
+
+        <section className="overflow-hidden border border-neutral-800 bg-neutral-950">
+          <div className="flex flex-col gap-4 border-b border-neutral-800 p-4 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <h2 className="text-lg font-medium text-white">Credit Ledger</h2>
+              <p className="mt-1 text-sm text-neutral-500">
+                Read-only accounting events for purchases, reservations, finalization, and refunds.
+              </p>
+            </div>
+            <span
+              className={`w-fit border px-2 py-1 text-xs ${
+                creditLedger.available
+                  ? "border-emerald-800 text-emerald-200"
+                  : "border-amber-800 text-amber-200"
+              }`}
+            >
+              {creditLedger.available ? "connected" : "waiting for credit_ledger table"}
+            </span>
+          </div>
+
+          <div className="grid gap-3 border-b border-neutral-900 p-4 sm:grid-cols-2 lg:grid-cols-5">
+            <MetricCard
+              label="Ledger events"
+              value={numberFormat(creditLedger.summary.events)}
+              sub={`last ${days} days`}
+            />
+            <MetricCard
+              label="Granted"
+              value={numberFormat(creditLedger.summary.creditsGranted)}
+              sub="purchase + trial"
+            />
+            <MetricCard
+              label="Reserved"
+              value={numberFormat(creditLedger.summary.creditsReserved)}
+              sub="job_reserve"
+            />
+            <MetricCard
+              label="Finalized"
+              value={numberFormat(creditLedger.summary.creditsFinalized)}
+              sub="successful jobs"
+            />
+            <MetricCard
+              label="Refunded"
+              value={numberFormat(creditLedger.summary.creditsRefunded)}
+              sub="technical failure"
+            />
+          </div>
+
+          {!creditLedger.available ? (
+            <div className="p-6 text-sm text-neutral-400">
+              Add the `credit_ledger` migration before enabling paid credits. The admin panel will
+              start showing ledger events automatically after the table exists.
+            </div>
+          ) : null}
+
+          {creditLedger.available ? (
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-left text-sm">
+                <thead className="bg-neutral-900 text-xs uppercase tracking-[0.08em] text-neutral-500">
+                  <tr>
+                    <th className="px-4 py-3">Event</th>
+                    <th className="px-4 py-3">Delta</th>
+                    <th className="px-4 py-3">Balance</th>
+                    <th className="px-4 py-3">User</th>
+                    <th className="px-4 py-3">Job</th>
+                    <th className="px-4 py-3">Payment</th>
+                    <th className="px-4 py-3">Created</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-neutral-900">
+                  {creditLedger.recentEvents.map((event) => (
+                    <tr key={event.id} className="text-neutral-300">
+                      <td className="px-4 py-3">
+                        <span
+                          className={`whitespace-nowrap border px-2 py-1 text-xs ${ledgerEventClass(
+                            event.event_type,
+                          )}`}
+                        >
+                          {event.event_type}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 font-mono text-xs">
+                        {event.credits_delta > 0 ? "+" : ""}
+                        {event.credits_delta}
+                      </td>
+                      <td className="px-4 py-3 font-mono text-xs">
+                        {event.balance_after ?? "—"}
+                      </td>
+                      <td className="px-4 py-3">
+                        <UserLabel
+                          username={event.username}
+                          telegramUserId={event.telegram_user_id}
+                        />
+                      </td>
+                      <td className="px-4 py-3 font-mono text-xs text-neutral-500">
+                        {event.related_job_id ? compactId(event.related_job_id) : "—"}
+                      </td>
+                      <td className="px-4 py-3 font-mono text-xs text-neutral-500">
+                        {event.related_payment_id ? compactId(event.related_payment_id) : "—"}
+                      </td>
+                      <td className="px-4 py-3 font-mono text-xs text-neutral-500">
+                        {new Date(event.created_at).toLocaleString("en-US")}
+                      </td>
+                    </tr>
+                  ))}
+                  {creditLedger.recentEvents.length === 0 ? (
+                    <tr>
+                      <td className="px-4 py-10 text-center text-neutral-500" colSpan={7}>
+                        No credit events in this window
+                      </td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
+          ) : null}
         </section>
       </div>
     </main>

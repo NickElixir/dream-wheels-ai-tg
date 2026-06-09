@@ -26,6 +26,7 @@ const I18N = {
         steps: {
             upload: "Upload",
             result: "Done",
+            cabinet: "Cabinet",
         },
         upload: {
             title: "Upload your car and wheel photos",
@@ -94,11 +95,46 @@ const I18N = {
         footer: {
             notTelegram: "Not in Telegram",
         },
+        legal: {
+            offer: "Offer",
+            refund: "Refunds",
+            privacy: "Privacy",
+            seller: "Seller",
+        },
+        cabinet: {
+            kicker: "Cabinet",
+            title: "My Dream Wheels AI",
+            credits: "credits",
+            packages: "Packages",
+            history: "Render history",
+            latest: "latest 10",
+            support: "Support",
+            paymentReady: "Payments pending setup",
+            paymentPending: "Payment pending",
+            paymentPaid: "Paid",
+            paymentFailed: "Payment failed",
+            paymentNote: "Payment opens through Robokassa. Credits are added after confirmation.",
+            paymentSetup: "Robokassa checkout will be enabled after store activation.",
+            emptyHistory: "Completed renders will appear here.",
+            openCabinet: "Open cabinet",
+        },
+        packages: {
+            start: "Start",
+            pro: "Pro",
+            master: "Master",
+            startMeta: "3 credits · 30 days",
+            proMeta: "20 credits · 30 days",
+            masterMeta: "50 credits · 30 days",
+        },
+        history: {
+            completed: "completed",
+        },
     },
     ru: {
         steps: {
             upload: "Загрузка",
             result: "Готово",
+            cabinet: "Кабинет",
         },
         upload: {
             title: "Загрузи фото машины и диска",
@@ -167,6 +203,40 @@ const I18N = {
         footer: {
             notTelegram: "Не в Telegram",
         },
+        legal: {
+            offer: "Оферта",
+            refund: "Возврат",
+            privacy: "ПДн",
+            seller: "Реквизиты",
+        },
+        cabinet: {
+            kicker: "Кабинет",
+            title: "Мой Dream Wheels AI",
+            credits: "credits",
+            packages: "Пакеты",
+            history: "История рендеров",
+            latest: "последние 10",
+            support: "Поддержка",
+            paymentReady: "Оплата настраивается",
+            paymentPending: "Ожидаем оплату",
+            paymentPaid: "Оплачено",
+            paymentFailed: "Оплата не прошла",
+            paymentNote: "Оплата откроется через Robokassa. Credits начисляются после подтверждения.",
+            paymentSetup: "Robokassa checkout включим после активации магазина.",
+            emptyHistory: "Завершенные рендеры появятся здесь.",
+            openCabinet: "Открыть кабинет",
+        },
+        packages: {
+            start: "Старт",
+            pro: "Про",
+            master: "Мастер",
+            startMeta: "3 credits · 30 дней",
+            proMeta: "20 credits · 30 дней",
+            masterMeta: "50 credits · 30 дней",
+        },
+        history: {
+            completed: "готово",
+        },
     },
 };
 
@@ -191,6 +261,9 @@ function applyTranslations() {
     document.querySelectorAll("[data-i18n-alt]").forEach((el) => {
         el.alt = t(el.dataset.i18nAlt);
     });
+    document.querySelectorAll("[data-i18n-title]").forEach((el) => {
+        el.title = t(el.dataset.i18nTitle);
+    });
 }
 
 function localizeErrorMessage(message) {
@@ -200,9 +273,12 @@ function localizeErrorMessage(message) {
     return message || t("errors.generic");
 }
 
-const SCREENS = ["upload", "result"];
+const STORAGE_KEY = "dream-wheels-ai-cabinet-v1";
+
+const SCREENS = ["upload", "result", "cabinet"];
 const state = {
     screen: "upload",
+    previousScreen: "upload",
     files: { car: null, wheel: null },
     pasteTarget: "car",
     jobId: null,
@@ -215,6 +291,9 @@ const state = {
     sharing: false,
     submitting: false,
     voted: false,
+    balance: 0,
+    paymentStatus: "ready",
+    history: [],
 };
 
 /* ---------- Telegram bootstrap ---------- */
@@ -240,6 +319,129 @@ function haptic(type) {
     else if (type === "error") h.notificationOccurred("error");
     else if (type === "warning") h.notificationOccurred("warning");
     else h.impactOccurred("light");
+}
+
+/* ---------- Cabinet state ---------- */
+
+function loadCabinetState() {
+    try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return;
+        const parsed = JSON.parse(raw);
+        state.balance = Number(parsed.balance || 0);
+        state.history = Array.isArray(parsed.history) ? parsed.history.slice(0, 10) : [];
+    } catch (error) {
+        console.warn("[DW] cabinet state load failed", error);
+    }
+}
+
+function saveCabinetState() {
+    try {
+        localStorage.setItem(
+            STORAGE_KEY,
+            JSON.stringify({
+                balance: state.balance,
+                history: state.history.slice(0, 10),
+            })
+        );
+    } catch (error) {
+        console.warn("[DW] cabinet state save failed", error);
+    }
+}
+
+function paymentStatusText() {
+    if (state.paymentStatus === "pending") return t("cabinet.paymentPending");
+    if (state.paymentStatus === "paid") return t("cabinet.paymentPaid");
+    if (state.paymentStatus === "failed") return t("cabinet.paymentFailed");
+    return t("cabinet.paymentReady");
+}
+
+function renderCabinet() {
+    const balanceValue = document.querySelector("[data-balance-value]");
+    if (balanceValue) balanceValue.textContent = String(state.balance);
+
+    const paymentStatus = document.querySelector("[data-payment-status]");
+    if (paymentStatus) {
+        paymentStatus.textContent = paymentStatusText();
+        paymentStatus.dataset.status = state.paymentStatus;
+    }
+
+    const historyList = document.querySelector("[data-history-list]");
+    if (!historyList) return;
+
+    historyList.innerHTML = "";
+    if (state.history.length === 0) {
+        const empty = document.createElement("div");
+        empty.className = "history-empty";
+        const icon = document.createElement("span");
+        icon.className = "history-empty-icon";
+        icon.setAttribute("aria-hidden", "true");
+        icon.textContent = "🖼️";
+        const text = document.createElement("span");
+        text.textContent = t("cabinet.emptyHistory");
+        empty.append(icon, text);
+        historyList.appendChild(empty);
+        return;
+    }
+
+    state.history.slice(0, 10).forEach((item) => {
+        const row = document.createElement("a");
+        row.className = "history-item";
+        row.href = item.url;
+        row.target = "_blank";
+        row.rel = "noreferrer";
+
+        const meta = document.createElement("div");
+        meta.className = "history-meta";
+        const date = document.createElement("span");
+        date.textContent = new Date(item.createdAt).toLocaleString(locale === "ru" ? "ru-RU" : "en-US");
+        const status = document.createElement("span");
+        status.textContent = t("history.completed");
+        meta.append(date, status);
+
+        const title = document.createElement("div");
+        title.className = "history-title";
+        title.textContent = item.jobId ? `#${item.jobId.slice(0, 8)}` : "Dream Wheels AI";
+
+        row.append(title, meta);
+        historyList.appendChild(row);
+    });
+}
+
+function addHistoryItem({ jobId, url }) {
+    if (!url) return;
+    state.history = [
+        {
+            jobId,
+            url,
+            createdAt: new Date().toISOString(),
+        },
+        ...state.history.filter((item) => item.jobId !== jobId),
+    ].slice(0, 10);
+    saveCabinetState();
+}
+
+function attachCabinetHandlers() {
+    const openCabinetButton = document.querySelector("[data-open-cabinet]");
+    if (openCabinetButton) {
+        openCabinetButton.addEventListener("click", () => {
+            state.previousScreen = state.screen === "cabinet" ? state.previousScreen : state.screen;
+            showScreen("cabinet");
+        });
+    }
+
+    document.querySelectorAll("[data-package]").forEach((button) => {
+        button.addEventListener("click", () => {
+            state.paymentStatus = "pending";
+            renderCabinet();
+            haptic("light");
+            setTimeout(() => {
+                if (state.screen !== "cabinet") return;
+                state.paymentStatus = "ready";
+                renderCabinet();
+            }, 1800);
+        });
+    });
 }
 
 /* ---------- Main button (native or fallback) ---------- */
@@ -319,7 +521,12 @@ function showScreen(name) {
     });
 
     const indicator = document.querySelector("[data-step-indicator]");
-    indicator.textContent = name === "result" ? t("steps.result") : t("steps.upload");
+    if (name === "cabinet") {
+        indicator.textContent = t("steps.cabinet");
+        renderCabinet();
+    } else {
+        indicator.textContent = name === "result" ? t("steps.result") : t("steps.upload");
+    }
 
     refreshButtonsForScreen();
 }
@@ -345,6 +552,15 @@ function refreshButtonsForScreen() {
                 onClick: resetFlow,
             });
         }
+    } else if (state.screen === "cabinet") {
+        setBackButton(() => showScreen(state.previousScreen || "upload"));
+        setMainButton({
+            text: t("actions.createRender"),
+            enabled: true,
+            onClick: () => {
+                resetFlow();
+            },
+        });
     }
 }
 
@@ -933,6 +1149,7 @@ async function submitJob() {
             const feedbackBlock = document.querySelector("[data-feedback-block]");
             if (feedbackBlock) feedbackBlock.hidden = false;
             resultBlock.hidden = false;
+            addHistoryItem({ jobId, url: statusData.result_url });
             refreshButtonsForScreen();
             pushDebug("poll:completed");
             haptic("success");
@@ -951,9 +1168,11 @@ async function submitJob() {
 
 document.addEventListener("DOMContentLoaded", () => {
     applyTranslations();
+    loadCabinetState();
     initTelegram();
     attachFileHandlers();
     attachResultHandlers();
     attachFeedbackHandlers();
+    attachCabinetHandlers();
     showScreen("upload");
 });

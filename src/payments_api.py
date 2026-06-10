@@ -17,6 +17,7 @@ from src.robokassa_client import (
     RobokassaConfigError,
     RobokassaSignatureError,
     build_payment_url,
+    build_receipt,
     format_amount,
     verify_result_signature,
 )
@@ -192,6 +193,7 @@ async def create_preorder(request: PreorderCreateRequest):
 
     invoice_id = int(row["invoice_id"])
     description = f"Предоплата Dream Wheels AI #{invoice_id}"
+    receipt = build_receipt(name="Предоплата Dream Wheels AI", amount_rub=amount)
     try:
         confirmation_url = build_payment_url(
             amount_rub=amount,
@@ -199,6 +201,7 @@ async def create_preorder(request: PreorderCreateRequest):
             preorder_id=preorder_id,
             email=request.email,
             description=description,
+            receipt=receipt,
         )
     except RobokassaConfigError as exc:
         logger.exception(f"Robokassa payment URL failed preorder_id={preorder_id}: {exc}")
@@ -221,11 +224,13 @@ async def create_preorder(request: PreorderCreateRequest):
             """
             UPDATE preorders
             SET confirmation_url = $2,
+                receipt_payload = $3::jsonb,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = $1::uuid
             """,
             preorder_id,
             confirmation_url,
+            json.dumps(receipt, ensure_ascii=False),
         )
 
     return PreorderCreateResponse(
@@ -281,6 +286,7 @@ async def create_topup(request: TopUpCreateRequest):
 
     invoice_id = int(row["invoice_id"])
     description = f"Dream Wheels AI render credits #{invoice_id}"
+    receipt = build_receipt(name="Dream Wheels AI render credits", amount_rub=amount)
     try:
         payment_url = build_payment_url(
             amount_rub=amount,
@@ -288,6 +294,7 @@ async def create_topup(request: TopUpCreateRequest):
             payment_id=payment_id,
             email=request.email,
             description=description,
+            receipt=receipt,
         )
     except (RobokassaConfigError, ValueError) as exc:
         logger.exception(f"❌ Robokassa topup URL failed payment_id={payment_id}: {exc}")
@@ -310,11 +317,13 @@ async def create_topup(request: TopUpCreateRequest):
             """
             UPDATE preorders
             SET confirmation_url = $2,
+                receipt_payload = $3::jsonb,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = $1::uuid
             """,
             payment_id,
             payment_url,
+            json.dumps(receipt, ensure_ascii=False),
         )
 
     return TopUpCreateResponse(

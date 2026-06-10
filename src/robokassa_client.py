@@ -6,8 +6,9 @@ password #2.
 """
 
 import hashlib
+import json
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
-from urllib.parse import urlencode
+from urllib.parse import quote_plus, urlencode
 
 from src.config import (
     ROBOKASSA_IS_TEST,
@@ -61,6 +62,33 @@ def _shp_signature_tail(params: dict[str, str]) -> str:
     return ":" + ":".join(f"{key}={value}" for key, value in pairs)
 
 
+def _json_amount(value: str | Decimal) -> int | float:
+    amount = Decimal(format_amount(value))
+    if amount == amount.to_integral_value():
+        return int(amount)
+    return float(amount)
+
+
+def build_receipt(
+    *, name: str, amount_rub: str | Decimal
+) -> dict[str, list[dict[str, int | float | str]]]:
+    return {
+        "items": [
+            {
+                "name": name[:128],
+                "quantity": 1,
+                "sum": _json_amount(amount_rub),
+                "tax": "none",
+            }
+        ]
+    }
+
+
+def encode_receipt(receipt: dict[str, object]) -> str:
+    receipt_json = json.dumps(receipt, ensure_ascii=False, separators=(",", ":"))
+    return quote_plus(receipt_json)
+
+
 def build_payment_url(
     *,
     amount_rub: str,
@@ -69,6 +97,7 @@ def build_payment_url(
     payment_id: str | None = None,
     email: str | None = None,
     description: str,
+    receipt: dict[str, object] | None = None,
 ) -> str:
     merchant_login, password1, _ = _required_config()
     amount = format_amount(amount_rub)
@@ -79,9 +108,12 @@ def build_payment_url(
         shp_params["Shp_payment_id"] = payment_id
     if not shp_params:
         raise ValueError("preorder_id or payment_id is required")
-    signature = _md5(
-        f"{merchant_login}:{amount}:{invoice_id}:{password1}{_shp_signature_tail(shp_params)}"
-    )
+    receipt_encoded = encode_receipt(receipt) if receipt else None
+    signature_parts = [merchant_login, amount, str(invoice_id)]
+    if receipt_encoded:
+        signature_parts.append(receipt_encoded)
+    signature_parts.append(password1)
+    signature = _md5(":".join(signature_parts) + _shp_signature_tail(shp_params))
     query = {
         "MerchantLogin": merchant_login,
         "OutSum": amount,
@@ -91,6 +123,8 @@ def build_payment_url(
         "SignatureValue": signature,
         **shp_params,
     }
+    if receipt_encoded:
+        query["Receipt"] = receipt_encoded
     if email:
         query["Email"] = email
     if ROBOKASSA_IS_TEST:

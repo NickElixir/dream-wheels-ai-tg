@@ -72,3 +72,10 @@ def test_topup_returns_disabled_when_payments_off():
     )
     assert r.status_code == 503
     assert r.json()["detail"] == "payments disabled"
+
+
+def test_robokassa_result_accepts_get_method():
+    """ResultURL в кабинете Robokassa может быть настроен как GET."""
+    r = client.get("/payments/robokassa/result")
+    assert r.status_code == 400
+    assert r.json()["detail"] == "invalid payment signature"

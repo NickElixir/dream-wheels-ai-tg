@@ -399,16 +399,16 @@ async def get_payment_status_short(invoice_id: int):
     return await get_payment_status(invoice_id)
 
 
-@router.post("/robokassa/result")
+@router.api_route("/robokassa/result", methods=["GET", "POST"])
 async def robokassa_result(request: Request):
     """Handle Robokassa ResultURL notification.
 
     Robokassa expects a plain text response: OK + invoice id.
     """
-    form = await request.form()
-    payload = {key: str(value) for key, value in form.items()}
+    payload = {key: str(value) for key, value in request.query_params.items()}
     if not payload:
-        payload = {key: str(value) for key, value in request.query_params.items()}
+        form = await request.form()
+        payload = {key: str(value) for key, value in form.items()}
 
     try:
         verify_result_signature(payload)

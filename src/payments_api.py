@@ -131,6 +131,28 @@ class PaymentStatusResponse(BaseModel):
     confirmation_url: str | None = None
 
 
+class PaymentHistoryItem(BaseModel):
+    payment_id: str
+    invoice_id: int
+    status: str
+    amount: str
+    currency: str
+    credits_granted: int | None = None
+    credits_expires_at: str | None = None
+    pricing_version: str | None = None
+    source_screen: str | None = None
+    tax_receipt_status: str
+    created_at: str
+    paid_at: str | None = None
+    confirmation_url: str | None = None
+
+
+class CabinetPaymentsResponse(BaseModel):
+    telegram_user_id: int
+    balance: int
+    payments: list[PaymentHistoryItem]
+
+
 def calculate_topup_credits(amount_rub: Decimal) -> int:
     amount = Decimal(format_amount(amount_rub))
     for min_amount, rub_per_credit in TOPUP_TIERS:
@@ -139,15 +161,19 @@ def calculate_topup_credits(amount_rub: Decimal) -> int:
     return 1
 
 
-def resolve_request_telegram_user_id(request: TopUpCreateRequest) -> int:
-    if request.init_data:
+def resolve_telegram_user_id(init_data: str | None, telegram_user_id: int | None) -> int:
+    if init_data:
         try:
-            return get_telegram_user_id(request.init_data)
+            return get_telegram_user_id(init_data)
         except InitDataInvalid as exc:
             raise HTTPException(status_code=401, detail="invalid telegram initData") from exc
-    if request.telegram_user_id is not None:
-        return request.telegram_user_id
+    if telegram_user_id is not None:
+        return telegram_user_id
     raise HTTPException(status_code=422, detail="init_data or telegram_user_id is required")
+
+
+def resolve_request_telegram_user_id(request: TopUpCreateRequest) -> int:
+    return resolve_telegram_user_id(request.init_data, request.telegram_user_id)
 
 
 async def get_credit_balance(user_id: int) -> int:
@@ -163,6 +189,20 @@ async def get_credit_balance(user_id: int) -> int:
             user_id,
         )
     return int(balance or 0)
+
+
+async def get_user_id_by_telegram_id(telegram_user_id: int) -> int | None:
+    pool = db.get_pool()
+    async with pool.acquire() as conn:
+        user_id = await conn.fetchval(
+            """
+            SELECT id
+            FROM users
+            WHERE telegram_user_id = $1
+            """,
+            telegram_user_id,
+        )
+    return int(user_id) if user_id is not None else None
 
 
 @router.post("/preorders", response_model=PreorderCreateResponse)
@@ -406,6 +446,55 @@ async def get_payment_status(invoice_id: int):
 @router.get("/{invoice_id}/status", response_model=PaymentStatusResponse)
 async def get_payment_status_short(invoice_id: int):
     return await get_payment_status(invoice_id)
+
+
+@router.get("/cabinet", response_model=CabinetPaymentsResponse)
+async def get_payment_cabinet(init_data: str | None = None, telegram_user_id: int | None = None):
+    telegram_id = resolve_telegram_user_id(init_data, telegram_user_id)
+    user_id = await get_user_id_by_telegram_id(telegram_id)
+    balance = await get_credit_balance(user_id) if user_id else 0
+
+    pool = db.get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT id, invoice_id, status, amount_value, currency,
+                   credits_granted, credits_expires_at, pricing_version,
+                   source_screen, tax_receipt_status, confirmation_url,
+                   created_at, paid_at
+            FROM preorders
+            WHERE telegram_user_id = $1
+              AND payment_kind = 'topup'
+            ORDER BY created_at DESC
+            LIMIT 10
+            """,
+            telegram_id,
+        )
+
+    return CabinetPaymentsResponse(
+        telegram_user_id=telegram_id,
+        balance=balance,
+        payments=[
+            PaymentHistoryItem(
+                payment_id=str(row["id"]),
+                invoice_id=int(row["invoice_id"]),
+                status=row["status"],
+                amount=format_amount(row["amount_value"]),
+                currency=row["currency"],
+                credits_granted=row["credits_granted"],
+                credits_expires_at=row["credits_expires_at"].isoformat()
+                if row["credits_expires_at"]
+                else None,
+                pricing_version=row["pricing_version"],
+                source_screen=row["source_screen"],
+                tax_receipt_status=row["tax_receipt_status"],
+                created_at=row["created_at"].isoformat(),
+                paid_at=row["paid_at"].isoformat() if row["paid_at"] else None,
+                confirmation_url=row["confirmation_url"],
+            )
+            for row in rows
+        ],
+    )
 
 
 @router.api_route("/robokassa/result", methods=["GET", "POST"])

@@ -79,3 +79,10 @@ def test_robokassa_result_accepts_get_method():
     r = client.get("/payments/robokassa/result")
     assert r.status_code == 400
     assert r.json()["detail"] == "invalid payment signature"
+
+
+def test_payment_cabinet_requires_telegram_identity():
+    """Кабинет не ходит в БД без Telegram identity."""
+    r = client.get("/payments/cabinet")
+    assert r.status_code == 422
+    assert r.json()["detail"] == "init_data or telegram_user_id is required"

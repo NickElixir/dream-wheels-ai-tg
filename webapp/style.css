@@ -579,8 +579,18 @@ h1 {
 .custom-topup {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 12px;
     padding-top: 2px;
+}
+
+.topup-island {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px;
+    border: 1px solid var(--border-strong);
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.03);
 }
 
 .custom-topup-label {
@@ -590,9 +600,9 @@ h1 {
 }
 
 .custom-topup-row {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
 }
 
 .custom-topup-row input {
@@ -623,6 +633,7 @@ h1 {
     color: #ff7a7a;
     font-size: 12px;
     font-weight: 600;
+    line-height: 1.35;
 }
 
 .custom-topup-row input:focus,
@@ -632,7 +643,7 @@ h1 {
 }
 
 .custom-topup-button {
-    min-width: 96px;
+    width: 100%;
     min-height: 46px;
     border: 0;
     border-radius: 14px;
@@ -645,6 +656,10 @@ h1 {
 .custom-topup-preview {
     color: var(--text-muted);
     font-size: 12px;
+}
+
+.topup-action-island {
+    align-items: stretch;
 }
 
 .payment-card {

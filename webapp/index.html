@@ -150,38 +150,44 @@
                     </button>
                 </div>
                 <div class="custom-topup">
-                    <label class="custom-topup-label" for="topup-email" data-i18n="cabinet.email">
-                        Email for receipt
-                    </label>
-                    <input
-                        id="topup-email"
-                        class="topup-email"
-                        type="email"
-                        inputmode="email"
-                        autocomplete="email"
-                        placeholder="name@example.com"
-                        data-topup-email
-                    />
-                    <p class="topup-email-error" data-topup-email-error hidden></p>
-                    <label class="custom-topup-label" for="custom-topup-amount" data-i18n="cabinet.customAmount">
-                        Custom amount
-                    </label>
-                    <div class="custom-topup-row">
+                    <div class="topup-island">
+                        <label class="custom-topup-label" for="custom-topup-amount" data-i18n="cabinet.customAmount">
+                            Custom amount
+                        </label>
+                        <div class="custom-topup-row">
+                            <input
+                                id="custom-topup-amount"
+                                type="number"
+                                inputmode="numeric"
+                                min="100"
+                                max="3000"
+                                step="50"
+                                value="200"
+                                data-custom-topup
+                            />
+                        </div>
+                        <p class="custom-topup-preview" data-custom-topup-preview>—</p>
+                    </div>
+                    <div class="topup-island">
+                        <label class="custom-topup-label" for="topup-email" data-i18n="cabinet.email">
+                            Email for receipt
+                        </label>
                         <input
-                            id="custom-topup-amount"
-                            type="number"
-                            inputmode="numeric"
-                            min="100"
-                            max="3000"
-                            step="50"
-                            value="200"
-                            data-custom-topup
+                            id="topup-email"
+                            class="topup-email"
+                            type="email"
+                            inputmode="email"
+                            autocomplete="email"
+                            placeholder="name@example.com"
+                            data-topup-email
                         />
+                        <p class="topup-email-error" data-topup-email-error hidden></p>
+                    </div>
+                    <div class="topup-island topup-action-island">
                         <button type="button" class="custom-topup-button" data-custom-topup-button>
                             <span data-i18n="cabinet.pay">Pay</span>
                         </button>
                     </div>
-                    <p class="custom-topup-preview" data-custom-topup-preview>—</p>
                 </div>
                 <p class="panel-note" data-i18n="cabinet.paymentNote">
                     Payment opens through Robokassa. Credits are added after confirmation.

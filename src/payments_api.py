@@ -11,6 +11,7 @@ from pydantic import BaseModel, field_validator
 
 from src import db
 from src.auth import InitDataInvalid, parse_init_data
+from src.config import PAYMENTS_ENABLED
 from src.credits_service import get_balance
 from src.payments_service import (
     PaymentConfigError,
@@ -109,6 +110,9 @@ async def get_payment_status(invoice_id: int):
 
 @router.post("/topups")
 async def create_topup(request: TopUpCreateRequest):
+    if not PAYMENTS_ENABLED:
+        raise HTTPException(status_code=503, detail="Payments are temporarily disabled")
+
     resolved_tg_user_id, username = _resolve_identity(request.init_data, request.telegram_user_id)
     intent = TopUpIntent(
         amount_rub=request.amount_decimal,

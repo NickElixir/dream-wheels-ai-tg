@@ -557,6 +557,7 @@ async function loadPaymentCabinet({ silent = true } = {}) {
             ? data.payments.map(normalizePayment).slice(0, 10)
             : [];
         state.pendingPayment = state.paymentHistory[0]?.status === "pending" ? state.paymentHistory[0] : null;
+        state.paymentError = "";
         if (state.pendingPayment) {
             state.paymentStatus = "pending";
         } else if (state.paymentHistory[0]?.status === "paid") {

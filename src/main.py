@@ -9,8 +9,9 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from src import db, jobs_api, redis_client, share_api, storage
+from src import db, jobs_api, payments_api, redis_client, share_api, storage
 from src.config import WEBAPP_URL
+from src.credits_service import finalize_job_credit, refund_job_credit
 from src.reve_client import fetch_image_base64, remix_wheels_on_car
 
 logging.basicConfig(
@@ -62,6 +63,7 @@ app.add_middleware(
 os.makedirs("static", exist_ok=True)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 app.include_router(jobs_api.router)
+app.include_router(payments_api.router)
 app.include_router(share_api.router)
 
 
@@ -100,6 +102,7 @@ async def process_jobs_loop():
 
     while True:
         job_id = None
+        job_data = None
         try:
             result = await rds.blpop("job_queue", timeout=10)
             if not result:
@@ -107,6 +110,7 @@ async def process_jobs_loop():
 
             job_data = json.loads(result[1])
             job_id = job_data["job_id"]
+            user_id = int(job_data["user_id"])
             source = job_data.get("source", "bot")
             logger.info(f"🔥 Взята задача: {job_id} (source={source})")
 
@@ -120,24 +124,33 @@ async def process_jobs_loop():
             output_url = await _save_render_output(job_id, job_data, img_bytes)
 
             async with pool.acquire() as conn:
-                await conn.execute(
-                    "UPDATE jobs SET status = 'completed', output_image_url = $1, "
-                    "completed_at = CURRENT_TIMESTAMP WHERE id = $2::uuid",
-                    output_url,
-                    job_id,
-                )
+                async with conn.transaction():
+                    await conn.execute(
+                        "UPDATE jobs SET status = 'completed', output_image_url = $1, "
+                        "completed_at = CURRENT_TIMESTAMP WHERE id = $2::uuid",
+                        output_url,
+                        job_id,
+                    )
+                    await finalize_job_credit(conn, user_id=user_id, job_id=job_id)
             logger.info(f"✅ Задача {job_id} завершена!")
 
         except Exception as e:
             logger.exception(f"❌ Ошибка воркера на job_id={job_id}: {e}")
             if job_id:
                 async with pool.acquire() as conn:
-                    await conn.execute(
-                        "UPDATE jobs SET status = 'failed', error_message = $1 "
-                        "WHERE id = $2::uuid",
-                        str(e),
-                        job_id,
-                    )
+                    async with conn.transaction():
+                        if job_data and job_data.get("user_id"):
+                            await refund_job_credit(
+                                conn,
+                                user_id=int(job_data["user_id"]),
+                                job_id=job_id,
+                            )
+                        await conn.execute(
+                            "UPDATE jobs SET status = 'failed', error_message = $1 "
+                            "WHERE id = $2::uuid",
+                            str(e),
+                            job_id,
+                        )
             await asyncio.sleep(5)
 
 

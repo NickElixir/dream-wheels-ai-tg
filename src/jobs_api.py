@@ -19,8 +19,10 @@ from pydantic import BaseModel, field_validator
 from src import db, redis_client, storage
 from src.auth import InitDataInvalid, parse_init_data
 from src.config import API_INTERNAL_TOKEN
+from src.credits_service import InsufficientCreditsError, reserve_job_credit
 from src.rate_limit import enforce_rate_limit
 from src.share_api import share_url_for_job
+from src.users_service import ensure_user
 
 logger = logging.getLogger(__name__)
 
@@ -136,35 +138,6 @@ def _download_filename(job_id: str, content_type: str | None) -> str:
     return f"dream-wheels-{job_id}.{ext}"
 
 
-async def _ensure_user(telegram_user_id: int, username: str | None = None) -> int:
-    """Найти или создать users.id по telegram_user_id, обновив username при наличии."""
-    pool = db.get_pool()
-    async with pool.acquire() as conn:
-        user_id = await conn.fetchval(
-            "SELECT id FROM users WHERE telegram_user_id = $1",
-            telegram_user_id,
-        )
-        if user_id:
-            if username:
-                await conn.execute(
-                    "UPDATE users SET username = $1 WHERE id = $2",
-                    username,
-                    user_id,
-                )
-            return user_id
-
-        user_id = await conn.fetchval(
-            """
-            INSERT INTO users (telegram_user_id, username)
-            VALUES ($1, $2)
-            RETURNING id
-            """,
-            telegram_user_id,
-            username,
-        )
-    return user_id
-
-
 @router.post("", response_model=JobCreateResponse)
 async def create_job(request: JobCreateRequest):
     """Создание задачи из бота — приходят Telegram file URL'ы."""
@@ -183,19 +156,26 @@ async def create_job(request: JobCreateRequest):
     rds = redis_client.get_client()
 
     try:
-        user_id = await _ensure_user(request.telegram_user_id, request.username)
         async with pool.acquire() as conn:
-            await conn.execute(
-                """
-                INSERT INTO jobs (id, user_id, status, car_image_url, wheel_image_url)
-                VALUES ($1::uuid, $2, 'queued', $3, $4)
-                """,
-                job_id,
-                user_id,
-                request.car_url,
-                request.wheel_url,
-            )
+            async with conn.transaction():
+                user_id = await ensure_user(conn, request.telegram_user_id, request.username)
+                await conn.execute(
+                    """
+                    INSERT INTO jobs (id, user_id, status, car_image_url, wheel_image_url)
+                    VALUES ($1::uuid, $2, 'queued', $3, $4)
+                    """,
+                    job_id,
+                    user_id,
+                    request.car_url,
+                    request.wheel_url,
+                )
+                await reserve_job_credit(conn, user_id=user_id, job_id=job_id)
             logger.info(f"✅ Задача {job_id} успешно записана в БД со статусом queued")
+    except InsufficientCreditsError as exc:
+        logger.warning(
+            f"❌ Недостаточно credits для telegram_user_id={request.telegram_user_id}: {exc}"
+        )
+        raise HTTPException(status_code=402, detail="Insufficient credits") from exc
 
     except Exception as db_err:
         logger.exception(
@@ -209,6 +189,7 @@ async def create_job(request: JobCreateRequest):
         json.dumps(
             {
                 "job_id": job_id,
+                "user_id": user_id,
                 "telegram_user_id": request.telegram_user_id,
                 "car_url": request.car_url,
                 "wheel_url": request.wheel_url,
@@ -307,33 +288,35 @@ async def upload_job(
         raise HTTPException(status_code=502, detail="Storage upload failed") from exc
 
     try:
-        user_id = await _ensure_user(telegram_user_id, username)
         pool = db.get_pool()
         async with pool.acquire() as conn:
-            await conn.execute(
-                """
-                INSERT INTO jobs (id, user_id, status, car_image_url, wheel_image_url)
-                VALUES ($1::uuid, $2, 'queued', $3, $4)
-                """,
-                job_id,
-                user_id,
-                car_path,
-                wheel_path,
-            )
+            async with conn.transaction():
+                user_id = await ensure_user(conn, telegram_user_id, username)
+                await conn.execute(
+                    """
+                    INSERT INTO jobs (id, user_id, status, car_image_url, wheel_image_url)
+                    VALUES ($1::uuid, $2, 'queued', $3, $4)
+                    """,
+                    job_id,
+                    user_id,
+                    car_path,
+                    wheel_path,
+                )
+                await reserve_job_credit(conn, user_id=user_id, job_id=job_id)
         logger.info(f"✅ Job {job_id} создан в БД (queued)")
+    except InsufficientCreditsError as exc:
+        logger.warning(f"❌ Недостаточно credits для tg_user={telegram_user_id}: {exc}")
+        raise HTTPException(status_code=402, detail="Insufficient credits") from exc
     except Exception as db_err:
         logger.exception(f"❌ DB INSERT failed для job_id={job_id}: {db_err}")
         raise HTTPException(status_code=500, detail="Database insert failed") from db_err
 
-    # TODO(backend-integration): воркер process_jobs_loop сейчас умеет только
-    # скачивать по URL через aiohttp.get() — для raw-bucket пути нужен другой
-    # путь скачивания (storage.download_bytes с service_role auth). Расширить
-    # формат payload и логику воркера в следующем коммите.
     await rds.rpush(
         "job_queue",
         json.dumps(
             {
                 "job_id": job_id,
+                "user_id": user_id,
                 "telegram_user_id": telegram_user_id,
                 "source": "webapp",
                 "car_storage_path": car_path,

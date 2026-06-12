@@ -357,6 +357,7 @@ const state = {
     balance: 0,
     paymentStatus: "ready",
     lastTopUpIntent: null,
+    selectedTopUpIntent: null,
     pendingPayment: null,
     paymentHistory: [],
     topUpEmail: "",
@@ -493,6 +494,13 @@ function setTopUpValidationError(message, field = "general") {
 function clearTopUpError() {
     state.paymentError = "";
     state.paymentErrorField = "";
+}
+
+function selectTopUpIntent(intent) {
+    state.selectedTopUpIntent = intent;
+    state.lastTopUpIntent = intent;
+    clearTopUpError();
+    renderCabinet();
 }
 
 function buildTopUpPayload(intent) {
@@ -696,6 +704,18 @@ function renderCustomTopUpPreview() {
     preview.textContent = formatTemplate("cabinet.topupPreview", { amount, credits });
 }
 
+function getSelectedTopUpIntent() {
+    if (state.selectedTopUpIntent) return state.selectedTopUpIntent;
+    const input = document.querySelector("[data-custom-topup]");
+    const rawAmount = Number(input?.value);
+    if (!Number.isFinite(rawAmount) || rawAmount < TOPUP_MIN_AMOUNT || rawAmount > TOPUP_MAX_AMOUNT) {
+        return null;
+    }
+    const amount = normalizeTopUpAmount(rawAmount);
+    const credits = calculateTopUpCredits(amount);
+    return buildTopUpIntent(amount, credits, "cabinet_custom_amount");
+}
+
 async function startTopUp(intent) {
     clearTopUpError();
     const email = getTopUpEmail();
@@ -770,12 +790,17 @@ function renderCabinet() {
         const meta = button.querySelector("[data-topup-meta]");
         if (name) name.textContent = `${amount} ₽`;
         if (meta) meta.textContent = formatTemplate("cabinet.topupMeta", { credits });
+        button.dataset.selected = String(
+            state.selectedTopUpIntent?.source_screen === "cabinet_quick_amount" &&
+                normalizeTopUpAmount(state.selectedTopUpIntent?.amount_rub || 0) === amount,
+        );
         button.disabled = state.paymentStatus === "creating" || state.checkingPayment;
     });
 
     const customButton = document.querySelector("[data-custom-topup-button]");
     if (customButton) {
         customButton.disabled = state.paymentStatus === "creating" || state.checkingPayment;
+        customButton.dataset.selected = String(state.selectedTopUpIntent?.source_screen === "cabinet_custom_amount");
     }
 
     renderCustomTopUpPreview();
@@ -928,7 +953,7 @@ function attachCabinetHandlers() {
         button.addEventListener("click", () => {
             const amount = normalizeTopUpAmount(button.dataset.topupAmount);
             const credits = Number(button.dataset.topupCredits || calculateTopUpCredits(amount));
-            startTopUp(buildTopUpIntent(amount, credits, "cabinet_quick_amount"));
+            selectTopUpIntent(buildTopUpIntent(amount, credits, "cabinet_quick_amount"));
         });
     });
 
@@ -936,6 +961,15 @@ function attachCabinetHandlers() {
     if (customInput) {
         customInput.addEventListener("input", () => {
             clearTopUpError();
+            const rawAmount = Number(customInput.value);
+            if (Number.isFinite(rawAmount) && rawAmount >= TOPUP_MIN_AMOUNT && rawAmount <= TOPUP_MAX_AMOUNT) {
+                const amount = normalizeTopUpAmount(rawAmount);
+                selectTopUpIntent(
+                    buildTopUpIntent(amount, calculateTopUpCredits(amount), "cabinet_custom_amount"),
+                );
+            } else {
+                state.selectedTopUpIntent = null;
+            }
             renderCustomTopUpPreview();
         });
     }
@@ -953,10 +987,8 @@ function attachCabinetHandlers() {
     const customButton = document.querySelector("[data-custom-topup-button]");
     if (customButton && customInput) {
         customButton.addEventListener("click", () => {
-            const amount = normalizeTopUpAmount(customInput.value);
-            customInput.value = String(amount);
-            const credits = calculateTopUpCredits(amount);
-            startTopUp(buildTopUpIntent(amount, credits, "cabinet_custom_amount"));
+            const intent = getSelectedTopUpIntent();
+            if (intent) startTopUp(intent);
         });
     }
 

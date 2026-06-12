@@ -538,6 +538,11 @@ h1 {
     cursor: pointer;
 }
 
+.topup-card[data-selected="true"] {
+    border-color: rgba(232, 255, 0, 0.65);
+    background: rgba(232, 255, 0, 0.08);
+}
+
 .topup-card:active {
     border-color: var(--accent);
     background: rgba(232, 255, 0, 0.06);
@@ -591,6 +596,15 @@ h1 {
     border: 1px solid var(--border-strong);
     border-radius: 16px;
     background: rgba(255, 255, 255, 0.03);
+}
+
+.topup-packages-island {
+    gap: 0;
+}
+
+.topup-action-island[data-selected="true"] {
+    border-color: rgba(232, 255, 0, 0.65);
+    background: rgba(232, 255, 0, 0.08);
 }
 
 .custom-topup-label {

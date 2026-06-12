@@ -117,6 +117,8 @@ const I18N = {
             credits: "credits",
             packages: "Packages",
             topUp: "Top up balance",
+            modePackage: "Package",
+            modeCustom: "Custom amount",
             customAmount: "Custom amount",
             pay: "Pay",
             paymentHistory: "Payment history",
@@ -146,6 +148,7 @@ const I18N = {
             openPaymentFailed: "Could not open payment page",
             createPaymentFailed: "Could not create payment",
             statusCheckFailed: "Could not check payment status",
+            packageRequired: "Choose a package first",
             paidHistory: "{amount} ₽ · {credits} credits",
             pendingHistory: "{amount} ₽ · pending",
             failedHistory: "{amount} ₽ · failed",
@@ -248,6 +251,8 @@ const I18N = {
             credits: "credits",
             packages: "Пакеты",
             topUp: "Пополнить баланс",
+            modePackage: "Пакет",
+            modeCustom: "Своя сумма",
             customAmount: "Своя сумма",
             pay: "Оплатить",
             paymentHistory: "История платежей",
@@ -277,6 +282,7 @@ const I18N = {
             openPaymentFailed: "Не удалось открыть страницу оплаты",
             createPaymentFailed: "Не удалось создать оплату",
             statusCheckFailed: "Не удалось проверить оплату",
+            packageRequired: "Сначала выберите пакет",
             paidHistory: "{amount} ₽ · {credits} credits",
             pendingHistory: "{amount} ₽ · ожидает оплаты",
             failedHistory: "{amount} ₽ · не прошла",
@@ -358,6 +364,7 @@ const state = {
     paymentStatus: "ready",
     lastTopUpIntent: null,
     selectedTopUpIntent: null,
+    topUpMode: "package",
     pendingPayment: null,
     paymentHistory: [],
     topUpEmail: "",
@@ -406,6 +413,7 @@ function loadCabinetState() {
             : [];
         state.pendingPayment = parsed.pendingPayment || null;
         state.topUpEmail = typeof parsed.topUpEmail === "string" ? parsed.topUpEmail : "";
+        state.topUpMode = parsed.topUpMode === "custom" ? "custom" : "package";
         if (state.pendingPayment?.status) state.paymentStatus = state.pendingPayment.status;
     } catch (error) {
         console.warn("[DW] cabinet state load failed", error);
@@ -422,6 +430,7 @@ function saveCabinetState() {
                 paymentHistory: state.paymentHistory.slice(0, 10),
                 pendingPayment: state.pendingPayment,
                 topUpEmail: state.topUpEmail,
+                topUpMode: state.topUpMode,
             })
         );
     } catch (error) {
@@ -501,6 +510,25 @@ function selectTopUpIntent(intent) {
     state.lastTopUpIntent = intent;
     clearTopUpError();
     renderCabinet();
+}
+
+function setTopUpMode(mode) {
+    state.topUpMode = mode === "custom" ? "custom" : "package";
+    clearTopUpError();
+    if (state.topUpMode === "custom") {
+        const input = document.querySelector("[data-custom-topup]");
+        const rawAmount = Number(input?.value);
+        if (Number.isFinite(rawAmount) && rawAmount >= TOPUP_MIN_AMOUNT && rawAmount <= TOPUP_MAX_AMOUNT) {
+            const amount = normalizeTopUpAmount(rawAmount);
+            state.selectedTopUpIntent = buildTopUpIntent(amount, calculateTopUpCredits(amount), "cabinet_custom_amount");
+        }
+        renderCabinet();
+        saveCabinetState();
+        window.setTimeout(() => document.querySelector("[data-custom-topup]")?.focus(), 120);
+        return;
+    }
+    renderCabinet();
+    saveCabinetState();
 }
 
 function buildTopUpPayload(intent) {
@@ -705,7 +733,18 @@ function renderCustomTopUpPreview() {
 }
 
 function getSelectedTopUpIntent() {
-    if (state.selectedTopUpIntent) return state.selectedTopUpIntent;
+    if (
+        state.topUpMode === "package" &&
+        state.selectedTopUpIntent?.source_screen === "cabinet_quick_amount"
+    ) {
+        return state.selectedTopUpIntent;
+    }
+    if (state.topUpMode === "custom" && state.selectedTopUpIntent?.source_screen === "cabinet_custom_amount") {
+        return state.selectedTopUpIntent;
+    }
+    if (state.topUpMode === "package") {
+        return null;
+    }
     const input = document.querySelector("[data-custom-topup]");
     const rawAmount = Number(input?.value);
     if (!Number.isFinite(rawAmount) || rawAmount < TOPUP_MIN_AMOUNT || rawAmount > TOPUP_MAX_AMOUNT) {
@@ -777,11 +816,32 @@ function renderCabinet() {
         emailError.textContent = isEmailError ? state.paymentError : "";
     }
 
+    const generalError = document.querySelector("[data-topup-general-error]");
+    if (generalError) {
+        const isGeneralError = Boolean(state.paymentError && state.paymentErrorField !== "email");
+        generalError.hidden = !isGeneralError;
+        generalError.textContent = isGeneralError ? state.paymentError : "";
+    }
+
     const paymentStatus = document.querySelector("[data-payment-status]");
     if (paymentStatus) {
         paymentStatus.textContent = paymentStatusText();
         paymentStatus.dataset.status = state.paymentStatus;
     }
+
+    document.querySelectorAll("[data-topup-mode-button]").forEach((button) => {
+        const mode = button.dataset.topupModeButton;
+        const isSelected = mode === state.topUpMode;
+        button.dataset.selected = String(isSelected);
+        button.setAttribute("aria-selected", String(isSelected));
+        button.disabled = state.paymentStatus === "creating" || state.checkingPayment;
+    });
+
+    document.querySelectorAll("[data-topup-panel]").forEach((panel) => {
+        const isActive = panel.dataset.topupPanel === state.topUpMode;
+        panel.dataset.active = String(isActive);
+        panel.setAttribute("aria-hidden", String(!isActive));
+    });
 
     document.querySelectorAll("[data-topup-amount]").forEach((button) => {
         const amount = normalizeTopUpAmount(button.dataset.topupAmount);
@@ -791,6 +851,7 @@ function renderCabinet() {
         if (name) name.textContent = `${amount} ₽`;
         if (meta) meta.textContent = formatTemplate("cabinet.topupMeta", { credits });
         button.dataset.selected = String(
+            state.topUpMode === "package" &&
             state.selectedTopUpIntent?.source_screen === "cabinet_quick_amount" &&
                 normalizeTopUpAmount(state.selectedTopUpIntent?.amount_rub || 0) === amount,
         );
@@ -800,7 +861,6 @@ function renderCabinet() {
     const customButton = document.querySelector("[data-custom-topup-button]");
     if (customButton) {
         customButton.disabled = state.paymentStatus === "creating" || state.checkingPayment;
-        customButton.dataset.selected = String(state.selectedTopUpIntent?.source_screen === "cabinet_custom_amount");
     }
 
     renderCustomTopUpPreview();
@@ -951,9 +1011,17 @@ function attachCabinetHandlers() {
 
     document.querySelectorAll("[data-topup-amount]").forEach((button) => {
         button.addEventListener("click", () => {
+            setTopUpMode("package");
             const amount = normalizeTopUpAmount(button.dataset.topupAmount);
             const credits = Number(button.dataset.topupCredits || calculateTopUpCredits(amount));
             selectTopUpIntent(buildTopUpIntent(amount, credits, "cabinet_quick_amount"));
+            saveCabinetState();
+        });
+    });
+
+    document.querySelectorAll("[data-topup-mode-button]").forEach((button) => {
+        button.addEventListener("click", () => {
+            setTopUpMode(button.dataset.topupModeButton);
         });
     });
 
@@ -961,6 +1029,7 @@ function attachCabinetHandlers() {
     if (customInput) {
         customInput.addEventListener("input", () => {
             clearTopUpError();
+            state.topUpMode = "custom";
             const rawAmount = Number(customInput.value);
             if (Number.isFinite(rawAmount) && rawAmount >= TOPUP_MIN_AMOUNT && rawAmount <= TOPUP_MAX_AMOUNT) {
                 const amount = normalizeTopUpAmount(rawAmount);
@@ -969,7 +1038,9 @@ function attachCabinetHandlers() {
                 );
             } else {
                 state.selectedTopUpIntent = null;
+                renderCabinet();
             }
+            saveCabinetState();
             renderCustomTopUpPreview();
         });
     }
@@ -988,7 +1059,15 @@ function attachCabinetHandlers() {
     if (customButton && customInput) {
         customButton.addEventListener("click", () => {
             const intent = getSelectedTopUpIntent();
-            if (intent) startTopUp(intent);
+            if (intent) {
+                startTopUp(intent);
+                return;
+            }
+            if (state.topUpMode === "package") {
+                setTopUpValidationError(t("cabinet.packageRequired"));
+            } else {
+                customInput.focus();
+            }
         });
     }
 

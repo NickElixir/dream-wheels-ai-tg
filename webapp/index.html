@@ -119,7 +119,26 @@
                     <h2 data-i18n="cabinet.topUp">Top up balance</h2>
                     <span class="payment-status" data-payment-status>—</span>
                 </div>
-                <div class="topup-island topup-packages-island">
+                <div class="topup-mode-switch" role="tablist" aria-label="Top up mode">
+                    <button
+                        type="button"
+                        class="topup-mode-button"
+                        data-topup-mode-button="package"
+                        data-i18n="cabinet.modePackage"
+                    >
+                        Package
+                    </button>
+                    <button
+                        type="button"
+                        class="topup-mode-button"
+                        data-topup-mode-button="custom"
+                        data-i18n="cabinet.modeCustom"
+                    >
+                        Custom amount
+                    </button>
+                </div>
+                <p class="topup-general-error" data-topup-general-error hidden></p>
+                <div class="topup-island topup-packages-island" data-topup-panel="package">
                     <div class="topup-grid" data-topup-grid>
                         <button type="button" class="topup-card" data-topup-amount="100" data-topup-credits="3">
                             <span class="topup-icon" aria-hidden="true">⚡</span>
@@ -151,8 +170,8 @@
                         </button>
                     </div>
                 </div>
-                <div class="custom-topup">
-                    <div class="topup-island">
+                <div class="custom-topup" data-topup-panel="custom">
+                    <div class="topup-island topup-custom-island">
                         <label class="custom-topup-label" for="custom-topup-amount" data-i18n="cabinet.customAmount">
                             Custom amount
                         </label>

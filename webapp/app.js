@@ -189,6 +189,88 @@ const state = {
     submitting: false,
 };
 
+const DRAFT_DB_NAME = "dream-wheels-upload-draft";
+const DRAFT_STORE_NAME = "files";
+
+function openDraftDb() {
+    return new Promise((resolve, reject) => {
+        if (!("indexedDB" in window)) {
+            resolve(null);
+            return;
+        }
+        const request = indexedDB.open(DRAFT_DB_NAME, 1);
+        request.onupgradeneeded = () => {
+            const db = request.result;
+            if (!db.objectStoreNames.contains(DRAFT_STORE_NAME)) {
+                db.createObjectStore(DRAFT_STORE_NAME, { keyPath: "kind" });
+            }
+        };
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+    });
+}
+
+async function saveDraftFile(kind, file, bytes) {
+    const db = await openDraftDb();
+    if (!db) return;
+    await new Promise((resolve, reject) => {
+        const tx = db.transaction(DRAFT_STORE_NAME, "readwrite");
+        tx.objectStore(DRAFT_STORE_NAME).put({
+            kind,
+            name: file.name,
+            size: file.size,
+            type: file.type,
+            bytes,
+        });
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+    });
+    db.close();
+}
+
+async function loadDraftFile(kind) {
+    const db = await openDraftDb();
+    if (!db) return null;
+    const entry = await new Promise((resolve, reject) => {
+        const tx = db.transaction(DRAFT_STORE_NAME, "readonly");
+        const request = tx.objectStore(DRAFT_STORE_NAME).get(kind);
+        request.onsuccess = () => resolve(request.result || null);
+        request.onerror = () => reject(request.error);
+    });
+    db.close();
+    if (!entry?.bytes) return null;
+    return {
+        blob: new Blob([entry.bytes], { type: entry.type }),
+        name: entry.name,
+        size: entry.size,
+        type: entry.type,
+    };
+}
+
+async function deleteDraftFile(kind) {
+    const db = await openDraftDb();
+    if (!db) return;
+    await new Promise((resolve, reject) => {
+        const tx = db.transaction(DRAFT_STORE_NAME, "readwrite");
+        tx.objectStore(DRAFT_STORE_NAME).delete(kind);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+    });
+    db.close();
+}
+
+async function hydrateFilesFromDraft() {
+    for (const kind of ["car", "wheel"]) {
+        if (state.files[kind]?.blob) continue;
+        try {
+            const draft = await loadDraftFile(kind);
+            if (draft) state.files[kind] = draft;
+        } catch (_) {
+            // ignore IndexedDB restore issues and fall back to existing UI error
+        }
+    }
+}
+
 /* ---------- Telegram bootstrap ---------- */
 
 function initTelegram() {
@@ -325,6 +407,8 @@ function resetFlow() {
     state.sharing = false;
     state.submitting = false;
     state.files = { car: null, wheel: null };
+    void deleteDraftFile("car");
+    void deleteDraftFile("wheel");
     state.jobId = null;
     state.resultUrl = null;
     state.resultDownloadUrl = null;
@@ -365,6 +449,7 @@ function attachFileHandlers() {
         btn.addEventListener("click", () => {
             const kind = btn.dataset.clear;
             state.files[kind] = null;
+            void deleteDraftFile(kind);
             const input = document.querySelector(`input[data-input="${kind}"]`);
             if (input) input.value = "";
             const preview = document.querySelector(`[data-preview="${kind}"]`);
@@ -387,6 +472,7 @@ function handleFileSelected(kind, file) {
             size: file.size,
             type: file.type,
         };
+        void saveDraftFile(kind, file, buf);
         refreshButtonsForScreen();
     });
 
@@ -670,6 +756,19 @@ async function submitJob() {
             initDataLen: HAS_TG ? (tg.initData || "").length : 0,
         })
     );
+
+    if (!state.files.car?.blob || !state.files.wheel?.blob) {
+        await hydrateFilesFromDraft();
+        pushDebug(
+            "files:restored",
+            JSON.stringify({
+                carName: state.files.car?.name,
+                carBlobSize: state.files.car?.blob?.size,
+                wheelName: state.files.wheel?.name,
+                wheelBlobSize: state.files.wheel?.blob?.size,
+            })
+        );
+    }
 
     if (!state.files.car?.blob || !state.files.wheel?.blob) {
         showError(t("errors.missingFiles"));

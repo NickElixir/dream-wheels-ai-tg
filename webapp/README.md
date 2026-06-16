@@ -100,6 +100,45 @@ https://<vercel-preview-or-prod-url>/?api=prod
 https://<vercel-preview-or-prod-url>/?api=reset
 ```
 
+## Хранение загруженных изображений
+
+Raw-изображения пользователя **не храним в `localStorage`**.
+
+Причины:
+
+- у `localStorage` маленький лимит, его легко переполнить двумя фото;
+- это синхронный API, он блокирует UI-поток;
+- base64 заметно раздувает размер файла;
+- в Telegram Mini App это повышает риск нестабильного поведения и поломки flow.
+
+Что допустимо хранить в `localStorage`:
+
+- выбранный API env (`prod` / `staging`);
+- UI-state кабинета;
+- небольшие текстовые metadata без бинарных payload.
+
+Если позже понадобится история черновиков или "последние загруженные фото", делать это нужно через:
+
+- `backend/storage + metadata в БД`, либо
+- `IndexedDB` для локальных черновиков.
+
+Для raw image blobs `localStorage` не использовать.
+
+## Telegram cache-bust для staging
+
+Telegram WebView может держать старый HTML/JS даже после повторного открытия Mini App.
+
+Если staging-бот продолжает открывать старую версию фронтенда:
+
+1. задеплой новый staging frontend;
+2. обнови URL в BotFather, добавив ревизию в query string, например:
+
+```text
+https://dream-wheels-ai-webapp-staging.vercel.app/?api=staging&rev=20260616-1
+```
+
+Дополнительный `rev` не используется приложением как параметр логики, но заставляет Telegram запросить новую страницу вместо старого закешированного URL.
+
 ## Что дальше — не в этом PR
 
 - Backend endpoint `POST /jobs/upload` (multipart, Supabase Storage)

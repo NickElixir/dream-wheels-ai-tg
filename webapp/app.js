@@ -94,6 +94,7 @@ const I18N = {
         errors: {
             generic: "Something went wrong",
             missingFiles: "Files are missing. Go back and upload both photos.",
+            filesPreparing: "Files are still loading. Wait a moment and try again.",
             generationFailed: "Generation failed",
             timeout: "Timed out after 110 seconds",
             requestFailed: "Request failed. Please try again.",
@@ -262,6 +263,7 @@ const I18N = {
         errors: {
             generic: "Что-то пошло не так",
             missingFiles: "Файлы не выбраны — вернитесь и загрузите оба фото",
+            filesPreparing: "Файлы еще загружаются. Подождите секунду и попробуйте снова.",
             generationFailed: "Ошибка генерации",
             timeout: "Превышено время ожидания (>110 с)",
             requestFailed: "Запрос не удался. Попробуйте ещё раз.",
@@ -439,6 +441,7 @@ const state = {
     paymentHistory: [],
     topUpEmail: "",
     checkingPayment: false,
+    fileReadsPending: 0,
     paymentError: "",
     paymentErrorField: "",
     lastPaymentError: "",
@@ -1354,7 +1357,7 @@ function showScreen(name) {
 function refreshButtonsForScreen() {
     if (state.screen === "upload") {
         setBackButton(null);
-        const ready = Boolean(state.files.car?.blob && state.files.wheel?.blob);
+        const ready = isUploadReady();
         setMainButton({
             text: t("actions.createRender"),
             enabled: ready && !state.submitting,
@@ -1393,6 +1396,7 @@ function resetFlow() {
     state.sharing = false;
     state.submitting = false;
     state.voted = false;
+    state.fileReadsPending = 0;
     state.files = { car: null, wheel: null };
     state.pasteTarget = "car";
     state.jobId = null;
@@ -1453,14 +1457,32 @@ function resetFlow() {
 
 function attachFileHandlers() {
     document.querySelectorAll("[data-upload-zone]").forEach((zone) => {
-        zone.addEventListener("click", () => {
-            setPasteTarget(zone.dataset.uploadZone);
+        zone.addEventListener("click", (event) => {
+            const kind = zone.dataset.uploadZone;
+            setPasteTarget(kind);
+            const input = document.querySelector(`input[data-input="${kind}"]`);
+            if (!input) return;
+            event.preventDefault();
+            try {
+                if (typeof input.showPicker === "function") {
+                    input.showPicker();
+                } else {
+                    input.click();
+                }
+            } catch (error) {
+                console.warn("[DW] upload picker open failed", { kind, error });
+                input.click();
+            }
         });
     });
 
     document.querySelectorAll("input[data-input]").forEach((input) => {
         const kind = input.dataset.input;
         input.addEventListener("change", (e) => {
+            console.log("[DW] input change:", {
+                kind,
+                fileCount: e.target.files?.length || 0,
+            });
             const file = e.target.files?.[0];
             if (!file) return;
             handleFileSelected(kind, file);
@@ -1472,6 +1494,7 @@ function attachFileHandlers() {
             const kind = btn.dataset.clear;
             setPasteTarget(kind);
             state.files[kind] = null;
+            state.fileReadsPending = 0;
             const input = document.querySelector(`input[data-input="${kind}"]`);
             if (input) input.value = "";
             const preview = document.querySelector(`[data-preview="${kind}"]`);
@@ -1508,6 +1531,14 @@ function showPasteStatus(message, isError = false) {
     }, 2400);
 }
 
+function isUploadReady() {
+    return Boolean(
+        state.files.car?.blob &&
+            state.files.wheel?.blob &&
+            state.fileReadsPending === 0
+    );
+}
+
 function imageFileFromPasteEvent(event) {
     const items = Array.from(event.clipboardData?.items || []);
     for (const item of items) {
@@ -1536,18 +1567,46 @@ function handlePaste(event) {
 
 function handleFileSelected(kind, file) {
     setPasteTarget(kind);
+    state.fileReadsPending += 1;
+    state.files[kind] = {
+        blob: null,
+        file,
+        name: file.name,
+        pending: true,
+        size: file.size,
+        type: file.type,
+    };
+    refreshButtonsForScreen();
+
     // iOS Telegram WebView теряет File reference при переходах между экранами,
     // поэтому читаем содержимое в Blob сразу и храним его — Blob можно передать
-    // в FormData точно так же как File. Параллельно делаем data-URL preview.
-    file.arrayBuffer().then((buf) => {
-        state.files[kind] = {
-            blob: new Blob([buf], { type: file.type }),
-            name: file.name,
-            size: file.size,
-            type: file.type,
-        };
-        refreshButtonsForScreen();
-    });
+    // в FormData точно так же как File.
+    file.arrayBuffer()
+        .then((buf) => {
+            state.files[kind] = {
+                blob: new Blob([buf], { type: file.type }),
+                file,
+                name: file.name,
+                pending: false,
+                size: file.size,
+                type: file.type,
+            };
+            console.log("[DW] file prepared:", {
+                kind,
+                name: file.name,
+                size: file.size,
+                type: file.type,
+            });
+        })
+        .catch((error) => {
+            console.error("[DW] file prepare failed", { kind, error });
+            state.files[kind] = null;
+            showPasteStatus(t("errors.requestFailed"), true);
+        })
+        .finally(() => {
+            state.fileReadsPending = Math.max(0, state.fileReadsPending - 1);
+            refreshButtonsForScreen();
+        });
 
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -1917,10 +1976,13 @@ async function submitJob() {
     console.log("[DW] submit state:", {
         carName: state.files.car?.name,
         carBlobSize: state.files.car?.blob?.size,
+        carPending: Boolean(state.files.car?.pending),
         carSize: state.files.car?.size,
         wheelName: state.files.wheel?.name,
         wheelBlobSize: state.files.wheel?.blob?.size,
+        wheelPending: Boolean(state.files.wheel?.pending),
         wheelSize: state.files.wheel?.size,
+        fileReadsPending: state.fileReadsPending,
         hasTG: HAS_TG,
         initDataLen: HAS_TG ? (tg.initData || "").length : 0,
     });
@@ -1929,12 +1991,20 @@ async function submitJob() {
         JSON.stringify({
             carName: state.files.car?.name,
             carBlobSize: state.files.car?.blob?.size,
+            carPending: Boolean(state.files.car?.pending),
             wheelName: state.files.wheel?.name,
             wheelBlobSize: state.files.wheel?.blob?.size,
+            wheelPending: Boolean(state.files.wheel?.pending),
+            fileReadsPending: state.fileReadsPending,
             hasTG: HAS_TG,
             initDataLen: HAS_TG ? (tg.initData || "").length : 0,
         })
     );
+
+    if (state.fileReadsPending > 0) {
+        showError(t("errors.filesPreparing"));
+        return;
+    }
 
     if (!state.files.car?.blob || !state.files.wheel?.blob) {
         showError(t("errors.missingFiles"));

@@ -1,24 +1,28 @@
-"""Payment endpoints for Robokassa preorder validation."""
+"""HTTP API для пополнения баланса через Robokassa."""
 
-import json
 import logging
 import re
-import uuid
 from decimal import Decimal
+from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Request, Response
+from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel, field_validator
 
 from src import db
-from src.auth import InitDataInvalid, get_telegram_user_id
-from src.config import PAYMENTS_ENABLED, PREORDER_AMOUNT_RUB
-from src.robokassa_client import (
-    CURRENCY_RUB,
-    RobokassaConfigError,
-    RobokassaSignatureError,
-    build_payment_url,
-    build_receipt,
-    format_amount,
+from src.auth import InitDataInvalid, parse_init_data
+from src.config import PAYMENTS_ENABLED
+from src.credits_service import get_balance
+from src.payments_service import (
+    PaymentConfigError,
+    PaymentNotFoundError,
+    PaymentValidationError,
+    TopUpIntent,
+    create_topup_payment,
+    get_payment_status_by_invoice,
+    list_payments_for_user,
+    mark_payment_paid,
+    normalize_amount_rub,
     verify_result_signature,
 )
 from src.users_service import ensure_user
@@ -26,570 +30,161 @@ from src.users_service import ensure_user
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/payments", tags=["payments"])
-
-EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
-TOPUP_MIN_AMOUNT_RUB = Decimal("100.00")
-TOPUP_MAX_AMOUNT_RUB = Decimal("3000.00")
-TOPUP_VALID_DAYS = 30
-PRICING_VERSION = "2026-06-balance-v1"
-TOPUP_TIERS = (
-    (Decimal("1000.00"), Decimal("1000.00") / Decimal(45)),
-    (Decimal("500.00"), Decimal("25.00")),
-    (Decimal("200.00"), Decimal("200.00") / Decimal(7)),
-    (Decimal("100.00"), Decimal("100.00") / Decimal(3)),
-)
+EMAIL_RE = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
 
 
-class PreorderCreateRequest(BaseModel):
+class TopUpCreateRequest(BaseModel):
+    amount_rub: str
+    pricing_version: str
+    source_screen: str
     email: str
+    init_data: str | None = None
     telegram_user_id: int | None = None
+
+    @field_validator("pricing_version", "source_screen")
+    @classmethod
+    def validate_text_fields(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("must not be empty")
+        return normalized[:128]
 
     @field_validator("email")
     @classmethod
     def validate_email(cls, value: str) -> str:
-        email = value.strip().lower()
-        if not EMAIL_RE.match(email):
+        normalized = value.strip().lower()
+        if not EMAIL_RE.fullmatch(normalized):
             raise ValueError("invalid email")
-        return email
+        return normalized
+
+    @property
+    def amount_decimal(self) -> Decimal:
+        return normalize_amount_rub(self.amount_rub)
 
 
-class PreorderCreateResponse(BaseModel):
-    preorder_id: str
-    invoice_id: int
-    status: str
-    amount: str
-    currency: str
-    confirmation_url: str
-
-
-class PreorderStatusResponse(BaseModel):
-    preorder_id: str
-    invoice_id: int
-    status: str
-    amount: str
-    currency: str
-    tax_receipt_status: str
-    tax_receipt_url: str | None = None
-    confirmation_url: str | None = None
-
-
-class TopUpCreateRequest(BaseModel):
-    amount_rub: Decimal
-    credits_requested: int | None = None
-    credits_granted: int | None = None
-    pricing_version: str = PRICING_VERSION
-    source_screen: str = "cabinet"
-    init_data: str | None = None
-    telegram_user_id: int | None = None
-    email: str | None = None
-
-    @field_validator("amount_rub")
-    @classmethod
-    def validate_amount(cls, value: Decimal) -> Decimal:
-        amount = Decimal(format_amount(value))
-        if amount < TOPUP_MIN_AMOUNT_RUB or amount > TOPUP_MAX_AMOUNT_RUB:
-            raise ValueError("amount_rub must be between 100 and 3000")
-        return amount
-
-    @field_validator("email")
-    @classmethod
-    def validate_optional_email(cls, value: str | None) -> str | None:
-        if value is None:
-            return None
-        email = value.strip().lower()
-        if not email:
-            return None
-        if not EMAIL_RE.match(email):
-            raise ValueError("invalid email")
-        return email
-
-
-class TopUpCreateResponse(BaseModel):
-    payment_id: str
-    invoice_id: int
-    status: str
-    amount: str
-    currency: str
-    credits_granted: int
-    credits_expires_in_days: int
-    pricing_version: str
-    payment_url: str
-
-
-class PaymentStatusResponse(BaseModel):
-    payment_id: str
-    invoice_id: int
-    status: str
-    amount: str
-    currency: str
-    credits_granted: int | None = None
-    credits_expires_at: str | None = None
-    pricing_version: str | None = None
-    source_screen: str | None = None
-    balance: int | None = None
-    tax_receipt_status: str
-    confirmation_url: str | None = None
-
-
-class PaymentHistoryItem(BaseModel):
-    payment_id: str
-    invoice_id: int
-    status: str
-    amount: str
-    currency: str
-    credits_granted: int | None = None
-    credits_expires_at: str | None = None
-    pricing_version: str | None = None
-    source_screen: str | None = None
-    tax_receipt_status: str
-    created_at: str
-    paid_at: str | None = None
-    confirmation_url: str | None = None
-
-
-class CabinetPaymentsResponse(BaseModel):
-    telegram_user_id: int
-    balance: int
-    payments: list[PaymentHistoryItem]
-
-
-def calculate_topup_credits(amount_rub: Decimal) -> int:
-    amount = Decimal(format_amount(amount_rub))
-    for min_amount, rub_per_credit in TOPUP_TIERS:
-        if amount >= min_amount:
-            return max(1, int(amount / rub_per_credit))
-    return 1
-
-
-def resolve_telegram_user_id(init_data: str | None, telegram_user_id: int | None) -> int:
+def _resolve_identity(
+    init_data: str | None, telegram_user_id: int | None
+) -> tuple[int, str | None]:
     if init_data:
         try:
-            return get_telegram_user_id(init_data)
+            parsed = parse_init_data(init_data)
         except InitDataInvalid as exc:
-            raise HTTPException(status_code=401, detail="invalid telegram initData") from exc
-    if telegram_user_id is not None:
-        return telegram_user_id
-    raise HTTPException(status_code=422, detail="init_data or telegram_user_id is required")
+            raise HTTPException(status_code=401, detail=f"initData invalid: {exc}") from exc
+        user = parsed.get("user") or {}
+        resolved_user_id = user.get("id")
+        if not resolved_user_id:
+            raise HTTPException(status_code=401, detail="initData без user.id")
+        username_raw = user.get("username")
+        username = username_raw if isinstance(username_raw, str) else None
+        return int(resolved_user_id), username
+
+    if telegram_user_id is None:
+        raise HTTPException(status_code=400, detail="telegram_user_id required in dev mode")
+    return telegram_user_id, None
 
 
-def resolve_request_telegram_user_id(request: TopUpCreateRequest) -> int:
-    return resolve_telegram_user_id(request.init_data, request.telegram_user_id)
-
-
-async def get_credit_balance(user_id: int) -> int:
+@router.get("/cabinet")
+async def get_payment_cabinet(
+    init_data: Annotated[str | None, Query()] = None,
+    telegram_user_id: Annotated[int | None, Query()] = None,
+):
+    resolved_tg_user_id, username = _resolve_identity(init_data, telegram_user_id)
     pool = db.get_pool()
     async with pool.acquire() as conn:
-        balance = await conn.fetchval(
-            """
-            SELECT COALESCE(SUM(delta_credits), 0)::int
-            FROM credit_ledger
-            WHERE user_id = $1
-              AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)
-            """,
-            user_id,
-        )
-    return int(balance or 0)
+        async with conn.transaction():
+            user_id = await ensure_user(conn, resolved_tg_user_id, username)
+            balance = await get_balance(conn, user_id)
+            payments = await list_payments_for_user(conn, user_id=user_id)
+    return {"balance": balance, "payments": payments}
 
 
-async def get_user_id_by_telegram_id(telegram_user_id: int) -> int | None:
-    pool = db.get_pool()
-    async with pool.acquire() as conn:
-        user_id = await conn.fetchval(
-            """
-            SELECT id
-            FROM users
-            WHERE telegram_user_id = $1
-            """,
-            telegram_user_id,
-        )
-    return int(user_id) if user_id is not None else None
-
-
-@router.post("/preorders", response_model=PreorderCreateResponse)
-async def create_preorder(request: PreorderCreateRequest):
-    """Create a local preorder and a signed Robokassa payment URL."""
-    if not PAYMENTS_ENABLED:
-        raise HTTPException(status_code=503, detail="payments disabled")
-
-    amount = format_amount(PREORDER_AMOUNT_RUB)
-    preorder_id = str(uuid.uuid4())
-    pool = db.get_pool()
-    async with pool.acquire() as conn:
-        row = await conn.fetchrow(
-            """
-            INSERT INTO preorders (
-                id, email, telegram_user_id, amount_value, currency,
-                status, tax_receipt_status
-            )
-            VALUES ($1::uuid, $2, $3, $4::numeric, $5, 'pending', 'pending_payment')
-            RETURNING invoice_id
-            """,
-            preorder_id,
-            request.email,
-            request.telegram_user_id,
-            amount,
-            CURRENCY_RUB,
-        )
-
-    invoice_id = int(row["invoice_id"])
-    description = f"Предоплата Dream Wheels AI #{invoice_id}"
-    receipt = build_receipt(name="Предоплата Dream Wheels AI", amount_rub=amount)
-    try:
-        confirmation_url = build_payment_url(
-            amount_rub=amount,
-            invoice_id=invoice_id,
-            preorder_id=preorder_id,
-            email=request.email,
-            description=description,
-            receipt=receipt,
-        )
-    except RobokassaConfigError as exc:
-        logger.exception(f"Robokassa payment URL failed preorder_id={preorder_id}: {exc}")
-        async with pool.acquire() as conn:
-            await conn.execute(
-                """
-                UPDATE preorders
-                SET status = 'payment_create_failed',
-                    robokassa_payload = $2::jsonb,
-                    updated_at = CURRENT_TIMESTAMP
-                WHERE id = $1::uuid
-                """,
-                preorder_id,
-                json.dumps({"error": str(exc)}, ensure_ascii=False),
-            )
-        raise HTTPException(status_code=502, detail="payment create failed") from exc
-
-    async with pool.acquire() as conn:
-        await conn.execute(
-            """
-            UPDATE preorders
-            SET confirmation_url = $2,
-                receipt_payload = $3::jsonb,
-                updated_at = CURRENT_TIMESTAMP
-            WHERE id = $1::uuid
-            """,
-            preorder_id,
-            confirmation_url,
-            json.dumps(receipt, ensure_ascii=False),
-        )
-
-    return PreorderCreateResponse(
-        preorder_id=preorder_id,
-        invoice_id=invoice_id,
-        status="pending",
-        amount=amount,
-        currency=CURRENCY_RUB,
-        confirmation_url=confirmation_url,
-    )
-
-
-@router.post("/topups", response_model=TopUpCreateResponse)
-async def create_topup(request: TopUpCreateRequest):
-    """Create a Robokassa payment for flexible render-credit balance top-up."""
-    if not PAYMENTS_ENABLED:
-        raise HTTPException(status_code=503, detail="payments disabled")
-
-    telegram_user_id = resolve_request_telegram_user_id(request)
-    await ensure_user(telegram_user_id)
-
-    amount = format_amount(request.amount_rub)
-    credits_granted = calculate_topup_credits(request.amount_rub)
-    payment_id = str(uuid.uuid4())
-    pool = db.get_pool()
-
-    async with pool.acquire() as conn:
-        row = await conn.fetchrow(
-            """
-            INSERT INTO preorders (
-                id, email, telegram_user_id, amount_value, currency,
-                status, tax_receipt_status, credits_granted, credits_expires_at,
-                pricing_version, source_screen, payment_kind
-            )
-            VALUES (
-                $1::uuid, $2, $3, $4::numeric, $5,
-                'pending', 'pending_payment', $6,
-                CURRENT_TIMESTAMP + ($7::text || ' days')::interval,
-                $8, $9, 'topup'
-            )
-            RETURNING invoice_id
-            """,
-            payment_id,
-            request.email,
-            telegram_user_id,
-            amount,
-            CURRENCY_RUB,
-            credits_granted,
-            str(TOPUP_VALID_DAYS),
-            request.pricing_version,
-            request.source_screen,
-        )
-
-    invoice_id = int(row["invoice_id"])
-    description = f"Dream Wheels AI render credits #{invoice_id}"
-    receipt = build_receipt(name="Dream Wheels AI render credits", amount_rub=amount)
-    try:
-        payment_url = build_payment_url(
-            amount_rub=amount,
-            invoice_id=invoice_id,
-            payment_id=payment_id,
-            email=request.email,
-            description=description,
-            receipt=receipt,
-        )
-    except (RobokassaConfigError, ValueError) as exc:
-        logger.exception(f"❌ Robokassa topup URL failed payment_id={payment_id}: {exc}")
-        async with pool.acquire() as conn:
-            await conn.execute(
-                """
-                UPDATE preorders
-                SET status = 'payment_create_failed',
-                    robokassa_payload = $2::jsonb,
-                    updated_at = CURRENT_TIMESTAMP
-                WHERE id = $1::uuid
-                """,
-                payment_id,
-                json.dumps({"error": str(exc)}, ensure_ascii=False),
-            )
-        raise HTTPException(status_code=502, detail="payment create failed") from exc
-
-    async with pool.acquire() as conn:
-        await conn.execute(
-            """
-            UPDATE preorders
-            SET confirmation_url = $2,
-                receipt_payload = $3::jsonb,
-                updated_at = CURRENT_TIMESTAMP
-            WHERE id = $1::uuid
-            """,
-            payment_id,
-            payment_url,
-            json.dumps(receipt, ensure_ascii=False),
-        )
-
-    return TopUpCreateResponse(
-        payment_id=payment_id,
-        invoice_id=invoice_id,
-        status="pending",
-        amount=amount,
-        currency=CURRENCY_RUB,
-        credits_granted=credits_granted,
-        credits_expires_in_days=TOPUP_VALID_DAYS,
-        pricing_version=request.pricing_version,
-        payment_url=payment_url,
-    )
-
-
-@router.get("/preorders/{preorder_id}", response_model=PreorderStatusResponse)
-async def get_preorder(preorder_id: str):
-    pool = db.get_pool()
-    async with pool.acquire() as conn:
-        row = await conn.fetchrow(
-            """
-            SELECT id, invoice_id, status, amount_value, currency, tax_receipt_status,
-                   tax_receipt_url, confirmation_url
-            FROM preorders
-            WHERE id = $1::uuid
-            """,
-            preorder_id,
-        )
-    if not row:
-        raise HTTPException(status_code=404, detail="preorder not found")
-    return PreorderStatusResponse(
-        preorder_id=str(row["id"]),
-        invoice_id=int(row["invoice_id"]),
-        status=row["status"],
-        amount=format_amount(row["amount_value"]),
-        currency=row["currency"],
-        tax_receipt_status=row["tax_receipt_status"],
-        tax_receipt_url=row["tax_receipt_url"],
-        confirmation_url=row["confirmation_url"],
-    )
-
-
-@router.get("/invoices/{invoice_id}/status", response_model=PaymentStatusResponse)
+@router.get("/{invoice_id}/status")
 async def get_payment_status(invoice_id: int):
     pool = db.get_pool()
     async with pool.acquire() as conn:
-        row = await conn.fetchrow(
-            """
-            SELECT p.id, p.invoice_id, p.status, p.amount_value, p.currency,
-                   p.credits_granted, p.credits_expires_at, p.pricing_version,
-                   p.source_screen, p.tax_receipt_status, p.confirmation_url,
-                   u.id AS user_id
-            FROM preorders p
-            LEFT JOIN users u ON u.telegram_user_id = p.telegram_user_id
-            WHERE p.invoice_id = $1
-            """,
-            invoice_id,
-        )
-    if not row:
-        raise HTTPException(status_code=404, detail="payment not found")
+        try:
+            return await get_payment_status_by_invoice(conn, invoice_id=invoice_id)
+        except PaymentNotFoundError as exc:
+            raise HTTPException(status_code=404, detail="Payment not found") from exc
 
-    balance = await get_credit_balance(int(row["user_id"])) if row["user_id"] else None
-    expires_at = row["credits_expires_at"].isoformat() if row["credits_expires_at"] else None
-    return PaymentStatusResponse(
-        payment_id=str(row["id"]),
-        invoice_id=int(row["invoice_id"]),
-        status=row["status"],
-        amount=format_amount(row["amount_value"]),
-        currency=row["currency"],
-        credits_granted=row["credits_granted"],
-        credits_expires_at=expires_at,
-        pricing_version=row["pricing_version"],
-        source_screen=row["source_screen"],
-        balance=balance,
-        tax_receipt_status=row["tax_receipt_status"],
-        confirmation_url=row["confirmation_url"],
+
+@router.post("/topups")
+async def create_topup(request: TopUpCreateRequest):
+    if not PAYMENTS_ENABLED:
+        raise HTTPException(status_code=503, detail="Payments are temporarily disabled")
+
+    resolved_tg_user_id, username = _resolve_identity(request.init_data, request.telegram_user_id)
+    intent = TopUpIntent(
+        amount_rub=request.amount_decimal,
+        pricing_version=request.pricing_version,
+        source_screen=request.source_screen,
+        receipt_email=request.email.lower(),
     )
-
-
-@router.get("/{invoice_id}/status", response_model=PaymentStatusResponse)
-async def get_payment_status_short(invoice_id: int):
-    return await get_payment_status(invoice_id)
-
-
-@router.get("/cabinet", response_model=CabinetPaymentsResponse)
-async def get_payment_cabinet(init_data: str | None = None, telegram_user_id: int | None = None):
-    telegram_id = resolve_telegram_user_id(init_data, telegram_user_id)
-    user_id = await get_user_id_by_telegram_id(telegram_id)
-    balance = await get_credit_balance(user_id) if user_id else 0
-
     pool = db.get_pool()
     async with pool.acquire() as conn:
-        rows = await conn.fetch(
-            """
-            SELECT id, invoice_id, status, amount_value, currency,
-                   credits_granted, credits_expires_at, pricing_version,
-                   source_screen, tax_receipt_status, confirmation_url,
-                   created_at, paid_at
-            FROM preorders
-            WHERE telegram_user_id = $1
-              AND payment_kind = 'topup'
-            ORDER BY created_at DESC
-            LIMIT 10
-            """,
-            telegram_id,
-        )
-
-    return CabinetPaymentsResponse(
-        telegram_user_id=telegram_id,
-        balance=balance,
-        payments=[
-            PaymentHistoryItem(
-                payment_id=str(row["id"]),
-                invoice_id=int(row["invoice_id"]),
-                status=row["status"],
-                amount=format_amount(row["amount_value"]),
-                currency=row["currency"],
-                credits_granted=row["credits_granted"],
-                credits_expires_at=row["credits_expires_at"].isoformat()
-                if row["credits_expires_at"]
-                else None,
-                pricing_version=row["pricing_version"],
-                source_screen=row["source_screen"],
-                tax_receipt_status=row["tax_receipt_status"],
-                created_at=row["created_at"].isoformat(),
-                paid_at=row["paid_at"].isoformat() if row["paid_at"] else None,
-                confirmation_url=row["confirmation_url"],
-            )
-            for row in rows
-        ],
-    )
+        async with conn.transaction():
+            user_id = await ensure_user(conn, resolved_tg_user_id, username)
+            await get_balance(conn, user_id)
+            try:
+                payload = await create_topup_payment(conn, user_id=user_id, intent=intent)
+            except PaymentConfigError as exc:
+                logger.exception(
+                    f"❌ Robokassa create topup failed tg_user={resolved_tg_user_id}: {exc}"
+                )
+                raise HTTPException(
+                    status_code=503, detail="Payment provider is not configured"
+                ) from exc
+    return payload
 
 
 @router.api_route("/robokassa/result", methods=["GET", "POST"])
 async def robokassa_result(request: Request):
-    """Handle Robokassa ResultURL notification.
+    if request.method == "POST":
+        payload = dict(await request.form())
+    else:
+        payload = dict(request.query_params)
 
-    Robokassa expects a plain text response: OK + invoice id.
-    """
-    payload = {key: str(value) for key, value in request.query_params.items()}
-    if not payload:
-        form = await request.form()
-        payload = {key: str(value) for key, value in form.items()}
+    out_sum = str(payload.get("OutSum") or payload.get("out_summ") or "")
+    inv_id_raw = payload.get("InvId") or payload.get("inv_id")
+    signature_value = str(payload.get("SignatureValue") or payload.get("signature_value") or "")
+    payment_id = str(payload.get("Shp_payment_id") or "")
+    is_test = str(payload.get("IsTest") or "0") == "1"
+
+    if not out_sum or not inv_id_raw or not signature_value or not payment_id:
+        raise HTTPException(status_code=400, detail="Missing Robokassa params")
 
     try:
-        verify_result_signature(payload)
-    except (RobokassaConfigError, RobokassaSignatureError) as exc:
-        logger.warning(f"Robokassa ResultURL rejected: {exc}")
-        raise HTTPException(status_code=400, detail="invalid payment signature") from exc
-
-    inv_id = payload.get("InvId") or payload.get("InvID")
-    out_sum = payload.get("OutSum")
-    if not inv_id or not out_sum:
-        raise HTTPException(status_code=400, detail="payment params missing")
-    try:
-        invoice_id = int(inv_id)
+        invoice_id = int(inv_id_raw)
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail="invalid invoice id") from exc
+        raise HTTPException(status_code=400, detail="InvId must be integer") from exc
+
+    if not verify_result_signature(
+        out_sum=out_sum,
+        invoice_id=invoice_id,
+        signature_value=signature_value,
+        payment_id=payment_id,
+        is_test=is_test,
+    ):
+        logger.warning(
+            f"❌ Robokassa signature mismatch invoice_id={invoice_id} payment_id={payment_id}"
+        )
+        raise HTTPException(status_code=401, detail="Invalid signature")
 
     pool = db.get_pool()
-    async with pool.acquire() as conn, conn.transaction():
-        row = await conn.fetchrow(
-            """
-            SELECT id, telegram_user_id, amount_value, currency, status,
-                   credits_granted, credits_expires_at, pricing_version,
-                   source_screen, payment_kind
-            FROM preorders
-            WHERE invoice_id = $1
-            FOR UPDATE
-            """,
-            invoice_id,
-        )
-        if not row:
-            raise HTTPException(status_code=404, detail="payment not found")
-        if format_amount(row["amount_value"]) != format_amount(out_sum):
-            raise HTTPException(status_code=400, detail="amount mismatch")
-
-        await conn.execute(
-            """
-            UPDATE preorders
-            SET status = 'paid',
-                robokassa_payment_status = 'paid',
-                robokassa_payload = $2::jsonb,
-                tax_receipt_status = 'pending_provider',
-                paid_at = COALESCE(paid_at, CURRENT_TIMESTAMP),
-                updated_at = CURRENT_TIMESTAMP
-            WHERE invoice_id = $1
-            """,
-            invoice_id,
-            json.dumps(payload, ensure_ascii=False),
-        )
-
-        if row["payment_kind"] == "topup" and row["telegram_user_id"] and row["credits_granted"]:
-            user_id = await conn.fetchval(
-                """
-                INSERT INTO users (telegram_user_id)
-                VALUES ($1)
-                ON CONFLICT (telegram_user_id) DO UPDATE
-                SET telegram_user_id = EXCLUDED.telegram_user_id
-                RETURNING id
-                """,
-                row["telegram_user_id"],
-            )
-            await conn.execute(
-                """
-                INSERT INTO credit_ledger (
-                    user_id, preorder_id, operation_type, delta_credits,
-                    amount_value, currency, pricing_version, source_screen,
-                    expires_at, metadata
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            try:
+                await mark_payment_paid(
+                    conn,
+                    invoice_id=invoice_id,
+                    provider_payment_id=payment_id,
+                    out_sum=out_sum,
+                    is_test=is_test,
                 )
-                VALUES (
-                    $1, $2::uuid, 'payment_grant', $3,
-                    $4::numeric, $5, $6, $7, $8, $9::jsonb
-                )
-                ON CONFLICT DO NOTHING
-                """,
-                user_id,
-                row["id"],
-                row["credits_granted"],
-                format_amount(row["amount_value"]),
-                row["currency"],
-                row["pricing_version"],
-                row["source_screen"],
-                row["credits_expires_at"],
-                json.dumps({"invoice_id": invoice_id}, ensure_ascii=False),
-            )
+            except PaymentValidationError as exc:
+                raise HTTPException(status_code=400, detail="Payment payload mismatch") from exc
+            except PaymentNotFoundError as exc:
+                raise HTTPException(status_code=404, detail="Payment not found") from exc
 
-    logger.info(f"✅ Robokassa payment succeeded invoice_id={inv_id}")
-    return Response(content=f"OK{inv_id}", media_type="text/plain")
+    logger.info(f"✅ Robokassa callback invoice_id={invoice_id} payment_id={payment_id}")
+    return PlainTextResponse(f"OK{invoice_id}")

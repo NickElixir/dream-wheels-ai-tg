@@ -12,13 +12,16 @@ import uuid
 from typing import Annotated
 
 import httpx
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, File, Form, Header, HTTPException, UploadFile
 from fastapi.responses import Response
 from pydantic import BaseModel, field_validator
 
 from src import db, redis_client, storage
 from src.auth import InitDataInvalid, parse_init_data
+from src.config import API_INTERNAL_TOKEN
+from src.credits_service import InsufficientCreditsError, reserve_job_credit
 from src.rate_limit import enforce_rate_limit
+from src.share_api import share_url_for_job
 from src.users_service import ensure_user
 
 logger = logging.getLogger(__name__)
@@ -45,8 +48,17 @@ IDEMPOTENCY_TTL_SEC = 60 * 60
 
 class JobCreateRequest(BaseModel):
     telegram_user_id: int
+    username: str | None = None
     car_url: str
     wheel_url: str
+
+    @field_validator("username")
+    @classmethod
+    def normalize_username(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        username = v.strip().lstrip("@")
+        return username or None
 
     @field_validator("car_url", "wheel_url")
     @classmethod
@@ -74,7 +86,46 @@ class JobStatusDetailedResponse(BaseModel):
     job_id: str
     status: str
     result_url: str | None = None
+    share_url: str | None = None
     error: str | None = None
+
+
+class FeedbackRequest(BaseModel):
+    vote: str
+    init_data: str | None = None
+    telegram_user_id: int | None = None
+
+    @field_validator("vote")
+    @classmethod
+    def validate_vote(cls, v: str) -> str:
+        if v not in ("like", "dislike"):
+            raise ValueError("vote must be 'like' or 'dislike'")
+        return v
+
+
+def _telegram_user_id_from_feedback_request(
+    request: FeedbackRequest,
+    internal_token: str | None,
+) -> int:
+    if request.init_data:
+        try:
+            parsed = parse_init_data(request.init_data)
+        except InitDataInvalid as exc:
+            raise HTTPException(status_code=401, detail=f"initData invalid: {exc}") from exc
+        user = parsed.get("user") or {}
+        telegram_user_id = user.get("id")
+        if not telegram_user_id:
+            raise HTTPException(status_code=401, detail="initData без user.id")
+        return int(telegram_user_id)
+
+    if not API_INTERNAL_TOKEN:
+        logger.error("API_INTERNAL_TOKEN не сконфигурирован: bot feedback отключён")
+        raise HTTPException(status_code=503, detail="Feedback auth is not configured")
+    if not internal_token or internal_token != API_INTERNAL_TOKEN:
+        raise HTTPException(status_code=401, detail="Invalid internal token")
+    if request.telegram_user_id is None:
+        raise HTTPException(status_code=400, detail="telegram_user_id required")
+    return request.telegram_user_id
 
 
 def _download_filename(job_id: str, content_type: str | None) -> str:
@@ -98,27 +149,33 @@ async def create_job(request: JobCreateRequest):
     )
 
     logger.info(
-        f"📥 Получен запрос на создание задачи. "
-        f"Авто: {request.car_url}, Диск: {request.wheel_url}"
+        f"📥 Получен запрос на создание задачи. Авто: {request.car_url}, Диск: {request.wheel_url}"
     )
     job_id = str(uuid.uuid4())
     pool = db.get_pool()
     rds = redis_client.get_client()
 
     try:
-        user_id = await ensure_user(request.telegram_user_id)
         async with pool.acquire() as conn:
-            await conn.execute(
-                """
-                INSERT INTO jobs (id, user_id, status, car_image_url, wheel_image_url)
-                VALUES ($1::uuid, $2, 'queued', $3, $4)
-                """,
-                job_id,
-                user_id,
-                request.car_url,
-                request.wheel_url,
-            )
+            async with conn.transaction():
+                user_id = await ensure_user(conn, request.telegram_user_id, request.username)
+                await conn.execute(
+                    """
+                    INSERT INTO jobs (id, user_id, status, car_image_url, wheel_image_url)
+                    VALUES ($1::uuid, $2, 'queued', $3, $4)
+                    """,
+                    job_id,
+                    user_id,
+                    request.car_url,
+                    request.wheel_url,
+                )
+                await reserve_job_credit(conn, user_id=user_id, job_id=job_id)
             logger.info(f"✅ Задача {job_id} успешно записана в БД со статусом queued")
+    except InsufficientCreditsError as exc:
+        logger.warning(
+            f"❌ Недостаточно credits для telegram_user_id={request.telegram_user_id}: {exc}"
+        )
+        raise HTTPException(status_code=402, detail="Insufficient credits") from exc
 
     except Exception as db_err:
         logger.exception(
@@ -132,6 +189,7 @@ async def create_job(request: JobCreateRequest):
         json.dumps(
             {
                 "job_id": job_id,
+                "user_id": user_id,
                 "telegram_user_id": request.telegram_user_id,
                 "car_url": request.car_url,
                 "wheel_url": request.wheel_url,
@@ -168,6 +226,8 @@ async def upload_job(
     if not telegram_user_id:
         raise HTTPException(status_code=401, detail="initData без user.id")
     telegram_user_id = int(telegram_user_id)
+    username_raw = user.get("username")
+    username = username_raw if isinstance(username_raw, str) else None
 
     await enforce_rate_limit(
         scope="jobs_upload",
@@ -228,33 +288,35 @@ async def upload_job(
         raise HTTPException(status_code=502, detail="Storage upload failed") from exc
 
     try:
-        user_id = await ensure_user(telegram_user_id)
         pool = db.get_pool()
         async with pool.acquire() as conn:
-            await conn.execute(
-                """
-                INSERT INTO jobs (id, user_id, status, car_image_url, wheel_image_url)
-                VALUES ($1::uuid, $2, 'queued', $3, $4)
-                """,
-                job_id,
-                user_id,
-                car_path,
-                wheel_path,
-            )
+            async with conn.transaction():
+                user_id = await ensure_user(conn, telegram_user_id, username)
+                await conn.execute(
+                    """
+                    INSERT INTO jobs (id, user_id, status, car_image_url, wheel_image_url)
+                    VALUES ($1::uuid, $2, 'queued', $3, $4)
+                    """,
+                    job_id,
+                    user_id,
+                    car_path,
+                    wheel_path,
+                )
+                await reserve_job_credit(conn, user_id=user_id, job_id=job_id)
         logger.info(f"✅ Job {job_id} создан в БД (queued)")
+    except InsufficientCreditsError as exc:
+        logger.warning(f"❌ Недостаточно credits для tg_user={telegram_user_id}: {exc}")
+        raise HTTPException(status_code=402, detail="Insufficient credits") from exc
     except Exception as db_err:
         logger.exception(f"❌ DB INSERT failed для job_id={job_id}: {db_err}")
         raise HTTPException(status_code=500, detail="Database insert failed") from db_err
 
-    # TODO(backend-integration): воркер process_jobs_loop сейчас умеет только
-    # скачивать по URL через aiohttp.get() — для raw-bucket пути нужен другой
-    # путь скачивания (storage.download_bytes с service_role auth). Расширить
-    # формат payload и логику воркера в следующем коммите.
     await rds.rpush(
         "job_queue",
         json.dumps(
             {
                 "job_id": job_id,
+                "user_id": user_id,
                 "telegram_user_id": telegram_user_id,
                 "source": "webapp",
                 "car_storage_path": car_path,
@@ -301,8 +363,43 @@ async def get_job_status_detailed(job_id: str):
         job_id=job_id,
         status=row["status"],
         result_url=row["output_image_url"],
+        share_url=share_url_for_job(job_id, bust_preview_cache=True)
+        if row["output_image_url"]
+        else None,
         error=row["error_message"],
     )
+
+
+@router.post("/{job_id}/feedback", status_code=204)
+async def submit_feedback(
+    job_id: str,
+    request: FeedbackRequest,
+    x_internal_token: Annotated[str | None, Header(alias="X-Internal-Token")] = None,
+):
+    """Сохранить лайк/дизлайк на результат. Повторный вызов перезаписывает.
+
+    WebApp подтверждает владельца через Telegram initData. Бот ходит как
+    trusted backend client с X-Internal-Token и telegram_user_id из callback.
+    """
+    telegram_user_id = _telegram_user_id_from_feedback_request(request, x_internal_token)
+    pool = db.get_pool()
+    async with pool.acquire() as conn:
+        result = await conn.execute(
+            """
+            UPDATE jobs
+            SET feedback = $1
+            FROM users
+            WHERE jobs.id = $2::uuid
+              AND jobs.user_id = users.id
+              AND users.telegram_user_id = $3
+            """,
+            request.vote,
+            job_id,
+            telegram_user_id,
+        )
+    if result == "UPDATE 0":
+        raise HTTPException(status_code=404, detail="Job not found")
+    logger.info(f"👍 Feedback '{request.vote}' для job_id={job_id} tg_user={telegram_user_id}")
 
 
 @router.get("/{job_id}/download")

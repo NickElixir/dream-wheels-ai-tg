@@ -657,7 +657,7 @@ function attachResultHandlers() {
 
 /* ---------- Submit ---------- */
 
-const API_BASE_URL = "https://dream-wheels-ai-tg.onrender.com";
+const API_BASE_URL = "https://dream-wheels-ai-robokassa-staging.onrender.com";
 const POLL_INTERVAL_MS = 3000;
 const POLL_TIMEOUT_MS = 110000; // Reve timeout 90s + margin
 

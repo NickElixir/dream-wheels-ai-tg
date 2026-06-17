@@ -720,6 +720,7 @@ async function submitJob() {
     }
 
     pushDebug("submit:start");
+    pushDebug("api:base", API_BASE_URL);
 
     // Render Free tier спит после 15 мин простоя — пингуем /health чтобы
     // разбудить сервис до отправки файлов (cold start ~30с).
@@ -783,6 +784,7 @@ async function submitJob() {
     if (telegramUserId != null) {
         formData.append("telegram_user_id", String(telegramUserId));
     }
+    pushDebug("telegram_user_id", telegramUserId == null ? "missing" : "present");
     const idempotencyKey = makeIdempotencyKey();
     formData.append("idempotency_key", idempotencyKey);
     pushDebug("upload:key", idempotencyKey);

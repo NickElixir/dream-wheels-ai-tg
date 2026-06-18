@@ -1,16 +1,6 @@
-// Dream Wheels AI — Telegram WebApp
-
 const tg = window.Telegram?.WebApp;
-// SDK-скрипт выставляет window.Telegram.WebApp даже в обычном браузере, но
-// репортит platform="unknown". В этом режиме MainButton/BackButton не
-// рендерятся (нет Telegram-чрома) — переключаемся на fallback-кнопку.
-const HAS_TG = Boolean(
-    tg && typeof tg.expand === "function" && tg.platform && tg.platform !== "unknown"
-);
+const HAS_TG = Boolean(tg && typeof tg.expand === "function" && tg.platform && tg.platform !== "unknown");
 
-// BackButton, HapticFeedback и пр. появились в Bot API 6.1.
-// В Telegram-клиентах старых версий SDK сообщает 6.0 — вызовы работают
-// с warning'ами в консоли, поэтому гейтим по версии.
 function tgSupports(version) {
     if (!HAS_TG) return false;
     if (typeof tg.isVersionAtLeast !== "function") return false;
@@ -21,76 +11,41 @@ const SUPPORTS_BACK_BUTTON = tgSupports("6.1");
 const SUPPORTS_HAPTIC = tgSupports("6.1");
 const SUPPORTS_DOWNLOAD_FILE = tgSupports("8.0") && typeof tg?.downloadFile === "function";
 
+const PROD_API_BASE_URL = "https://dream-wheels-ai-tg.onrender.com";
+const STAGING_API_BASE_URL = "https://dream-wheels-ai-robokassa-staging.onrender.com";
+const LOCAL_API_BASE_URL = "http://127.0.0.1:10000";
+const API_MODE_STORAGE_KEY = "dreamWheelsApiMode";
+const DEV_TELEGRAM_USER_ID_STORAGE_KEY = "dreamWheelsDevTelegramUserId";
+const RECENT_RENDERS_STORAGE_KEY = "dreamWheelsRecentRenders";
+const PRICING_VERSION = "credits-v1";
+const PAYMENT_AMOUNTS = [500, 900, 1500, 3000];
+const POLL_INTERVAL_MS = 3000;
+const POLL_TIMEOUT_MS = 110000;
+const DRAFT_DB_NAME = "dream-wheels-upload-draft";
+const DRAFT_STORE_NAME = "files";
+
 const I18N = {
-    en: {
-        steps: {
-            upload: "Upload",
-            result: "Done",
-        },
-        upload: {
-            title: "Upload your car and wheel photos",
-            hint: "Full side view of the car, front view of the wheel. JPG or PNG, up to 10 MB.",
-            carPhoto: "Car photo",
-            wheelPhoto: "Wheel photo",
-            choose: "Tap to choose",
-            replaceCar: "Replace car",
-            replaceWheel: "Replace wheel",
-            carPreviewAlt: "Car preview",
-            wheelPreviewAlt: "Wheel preview",
-        },
-        status: {
-            creating: "Creating job...",
-            startingServer: "Starting server...",
-            coldStart: "First launch can take up to 40 seconds",
-            uploading: "Uploading files...",
-            upTo90: "This can take up to 90 seconds",
-            generating: "Generating render...",
-        },
-        result: {
-            imageAlt: "AI render",
-            title: "Done!",
-            caption: "Your render with new wheels is ready.",
-        },
-        actions: {
-            createRender: "Create render",
-            createAnother: "Create another",
-            download: "Download",
-            downloadImage: "Download image",
-            requestingDownload: "Requesting download...",
-            downloadCanceled: "Download canceled",
-            downloadStarted: "Download started",
-            downloadFailed: "Download failed",
-            share: "Share",
-            preparing: "Preparing...",
-            openingTelegram: "Opening Telegram",
-            sent: "Sent",
-            linkCopied: "Link copied",
-            openingLink: "Opening link",
-            canceled: "Canceled",
-            failed: "Failed",
-        },
-        errors: {
-            generic: "Something went wrong",
-            missingFiles: "Files are missing. Go back and upload both photos.",
-            generationFailed: "Generation failed",
-            timeout: "Timed out after 110 seconds",
-            requestFailed: "Request failed. Please try again.",
-        },
-        share: {
-            text: "My Dream Wheels AI render",
-        },
-        footer: {
-            notTelegram: "Not in Telegram",
-        },
-    },
     ru: {
-        steps: {
-            upload: "Загрузка",
-            result: "Готово",
+        menu: {
+            create: "Создать рендер",
+            wallet: "Кошелек",
+            renders: "История рендеров",
+            settings: "Настройки",
+            support: "Поддержка",
+            docs: "Документы",
         },
-        upload: {
+        caption: {
+            create: "Рендер",
+            wallet: "Кабинет",
+            renders: "Рендеры",
+            settings: "Настройки",
+            support: "Поддержка",
+            docs: "Документы",
+        },
+        create: {
+            eyebrow: "Главный экран",
             title: "Загрузи фото машины и диска",
-            hint: "Машина целиком сбоку, диск анфас. JPG или PNG, до 10 MB.",
+            lede: "Машина целиком сбоку, диск анфас. JPG или PNG, до 10 MB.",
             carPhoto: "Фото машины",
             wheelPhoto: "Фото диска",
             choose: "Нажми, чтобы выбрать",
@@ -98,6 +53,11 @@ const I18N = {
             replaceWheel: "Заменить диск",
             carPreviewAlt: "Превью машины",
             wheelPreviewAlt: "Превью диска",
+            footerNotTelegram: "Не в Telegram",
+        },
+        steps: {
+            upload: "Загрузка",
+            result: "Готово",
         },
         status: {
             creating: "Создаём задачу...",
@@ -129,6 +89,7 @@ const I18N = {
             openingLink: "Открываем ссылку",
             canceled: "Отменено",
             failed: "Не удалось",
+            openRender: "Открыть",
         },
         errors: {
             generic: "Что-то пошло не так",
@@ -140,9 +101,249 @@ const I18N = {
         share: {
             text: "Мой рендер в Dream Wheels AI",
         },
-        footer: {
-            notTelegram: "Не в Telegram",
+        wallet: {
+            eyebrow: "Кабинет",
+            title: "Мой Dream Wheels AI",
+            lede: "Здесь видны баланс, последний счет и быстрый платежный flow в три шага.",
+            starterGrant: "Стартовый грант",
+            lastInvoiceLabel: "Последний счет",
+            lastInvoiceTitle: "Статус виден сразу после оплаты",
+            lastInvoiceEmpty: "Оплат еще не было. После первой покупки здесь появится последний счет.",
+            wizardLabel: "Пополнение",
+            wizardTitle: "Три шага оплаты",
+            reset: "Сбросить",
+            stepAmount: "Сумма",
+            stepEmail: "Email",
+            stepConfirm: "Подтверждение",
+            chooseAmount: "Выбор суммы",
+            nextToEmail: "Продолжить",
+            emailLabel: "Email для чека",
+            emailHint: "Нужен только для отправки платежной информации.",
+            back: "Назад",
+            nextToConfirm: "Продолжить",
+            confirmAmount: "Сумма",
+            confirmEmail: "Email",
+            confirmCredits: "Начисление",
+            confirmHint: "После нажатия кнопки откроется Robokassa, а счет появится здесь.",
+            pay: "Оплатить",
+            paymentHistory: "История платежей",
+            paymentHistoryHint: "Скрыта по умолчанию",
+            openHistory: "Открыть",
+            emptyHistory: "Платежей пока нет",
+            loading: "Загружаем кабинет...",
+            openingPayment: "Открываем Robokassa...",
+            paymentSuccess: "Оплата подтверждена. Обновляем баланс.",
+            paymentFail: "Платеж не завершен.",
+            authRequired: "Откройте Mini App в Telegram или добавьте ?tgUser=123456 для staging fallback.",
+            fallbackDisabled: "Web fallback выключен на backend.",
         },
+        renders: {
+            eyebrow: "Готовые работы",
+            title: "История рендеров",
+            lede: "Здесь видны последние сохраненные рендеры на этом устройстве.",
+            empty: "Готовых рендеров пока нет. Создайте первый на главном экране.",
+            completed: "Готов",
+            failed: "Ошибка",
+        },
+        settings: {
+            eyebrow: "Параметры кабинета",
+            title: "Настройки",
+            lede: "Формальный экран для будущих параметров профиля и уведомлений.",
+            profileTitle: "Профиль Telegram",
+            profileText: "Связан автоматически с Mini App.",
+            notificationsTitle: "Уведомления",
+            notificationsText: "Будут добавлены позже.",
+            languageTitle: "Язык интерфейса",
+            languageText: "Определяется по Telegram.",
+            linked: "Подключено",
+            soon: "Скоро",
+        },
+        support: {
+            eyebrow: "Связь",
+            title: "Поддержка",
+            lede: "Короткий и формальный экран контактов без лишнего текста.",
+            telegram: "Telegram",
+            email: "Email",
+            offer: "Оферта",
+            refund: "Возврат",
+            pdn: "ПДн",
+            requisites: "Реквизиты",
+        },
+        docs: {
+            eyebrow: "Документы",
+            title: "Документы",
+            lede: "Формальный список ссылок на юридические и справочные материалы.",
+            offer: "Оферта",
+            privacy: "Политика конфиденциальности",
+            payments: "Условия оплаты",
+        },
+        failed: "Сбой",
+        starter: "Стартовый грант",
+        pending: "В ожидании",
+        paid: "Оплачено",
+        created: "Создан",
+        locale: "RU",
+        credits: "credits",
+    },
+    en: {
+        menu: {
+            create: "Create render",
+            wallet: "Wallet",
+            renders: "Render history",
+            settings: "Settings",
+            support: "Support",
+            docs: "Documents",
+        },
+        caption: {
+            create: "Render",
+            wallet: "Cabinet",
+            renders: "Renders",
+            settings: "Settings",
+            support: "Support",
+            docs: "Documents",
+        },
+        create: {
+            eyebrow: "Main screen",
+            title: "Upload your car and wheel photos",
+            lede: "Full side view of the car, front view of the wheel. JPG or PNG, up to 10 MB.",
+            carPhoto: "Car photo",
+            wheelPhoto: "Wheel photo",
+            choose: "Tap to choose",
+            replaceCar: "Replace car",
+            replaceWheel: "Replace wheel",
+            carPreviewAlt: "Car preview",
+            wheelPreviewAlt: "Wheel preview",
+            footerNotTelegram: "Not in Telegram",
+        },
+        steps: {
+            upload: "Upload",
+            result: "Done",
+        },
+        status: {
+            creating: "Creating job...",
+            startingServer: "Starting server...",
+            coldStart: "First launch can take up to 40 seconds",
+            uploading: "Uploading files...",
+            upTo90: "This can take up to 90 seconds",
+            generating: "Generating render...",
+        },
+        result: {
+            imageAlt: "AI render",
+            title: "Done!",
+            caption: "Your render with new wheels is ready.",
+        },
+        actions: {
+            createRender: "Create render",
+            createAnother: "Create another",
+            download: "Download",
+            downloadImage: "Download image",
+            requestingDownload: "Requesting download...",
+            downloadCanceled: "Download canceled",
+            downloadStarted: "Download started",
+            downloadFailed: "Download failed",
+            share: "Share",
+            preparing: "Preparing...",
+            openingTelegram: "Opening Telegram",
+            sent: "Sent",
+            linkCopied: "Link copied",
+            openingLink: "Opening link",
+            canceled: "Canceled",
+            failed: "Failed",
+            openRender: "Open",
+        },
+        errors: {
+            generic: "Something went wrong",
+            missingFiles: "Files are missing. Go back and upload both photos.",
+            generationFailed: "Generation failed",
+            timeout: "Timed out after 110 seconds",
+            requestFailed: "Request failed. Please try again.",
+        },
+        share: {
+            text: "My Dream Wheels AI render",
+        },
+        wallet: {
+            eyebrow: "Cabinet",
+            title: "My Dream Wheels AI",
+            lede: "Balance, last invoice, and a three-step payment flow in one place.",
+            starterGrant: "Starter grant",
+            lastInvoiceLabel: "Last invoice",
+            lastInvoiceTitle: "Status appears immediately after payment",
+            lastInvoiceEmpty: "No payments yet. The first purchase will show up here as the last invoice.",
+            wizardLabel: "Top up",
+            wizardTitle: "Three payment steps",
+            reset: "Reset",
+            stepAmount: "Amount",
+            stepEmail: "Email",
+            stepConfirm: "Confirm",
+            chooseAmount: "Amount selection",
+            nextToEmail: "Continue",
+            emailLabel: "Receipt email",
+            emailHint: "Used only for payment delivery details.",
+            back: "Back",
+            nextToConfirm: "Continue",
+            confirmAmount: "Amount",
+            confirmEmail: "Email",
+            confirmCredits: "Credits",
+            confirmHint: "Robokassa opens on tap and the invoice appears here immediately.",
+            pay: "Pay",
+            paymentHistory: "Payment history",
+            paymentHistoryHint: "Collapsed by default",
+            openHistory: "Open",
+            emptyHistory: "No payments yet",
+            loading: "Loading cabinet...",
+            openingPayment: "Opening Robokassa...",
+            paymentSuccess: "Payment confirmed. Refreshing balance.",
+            paymentFail: "Payment was not completed.",
+            authRequired: "Open the Mini App in Telegram or add ?tgUser=123456 for staging fallback.",
+            fallbackDisabled: "Web fallback is disabled on the backend.",
+        },
+        renders: {
+            eyebrow: "Finished work",
+            title: "Render history",
+            lede: "Recent renders saved on this device.",
+            empty: "No renders yet. Create your first one on the main screen.",
+            completed: "Done",
+            failed: "Failed",
+        },
+        settings: {
+            eyebrow: "Cabinet settings",
+            title: "Settings",
+            lede: "A formal screen for future profile and notification options.",
+            profileTitle: "Telegram profile",
+            profileText: "Linked automatically through the Mini App.",
+            notificationsTitle: "Notifications",
+            notificationsText: "Will be added later.",
+            languageTitle: "Interface language",
+            languageText: "Detected from Telegram.",
+            linked: "Connected",
+            soon: "Soon",
+        },
+        support: {
+            eyebrow: "Contact",
+            title: "Support",
+            lede: "A short formal contact screen without extra content.",
+            telegram: "Telegram",
+            email: "Email",
+            offer: "Offer",
+            refund: "Refund",
+            pdn: "Privacy",
+            requisites: "Details",
+        },
+        docs: {
+            eyebrow: "Documents",
+            title: "Documents",
+            lede: "A formal list of legal and reference materials.",
+            offer: "Offer",
+            privacy: "Privacy policy",
+            payments: "Payment terms",
+        },
+        failed: "Failed",
+        starter: "Starter grant",
+        pending: "Pending",
+        paid: "Paid",
+        created: "Created",
+        locale: "EN",
+        credits: "credits",
     },
 };
 
@@ -155,9 +356,77 @@ function detectLocale() {
 
 const locale = detectLocale();
 
-function t(key) {
-    return key.split(".").reduce((value, part) => value?.[part], I18N[locale]) ?? key;
+function t(path) {
+    return path.split(".").reduce((value, key) => value?.[key], I18N[locale]) ?? path;
 }
+
+function resolveApiBaseUrl() {
+    const params = new URLSearchParams(window.location.search);
+    const apiBase = params.get("apiBase");
+    const apiMode = params.get("api");
+
+    if (apiBase) {
+        return apiBase.replace(/\/+$/, "");
+    }
+    if (apiMode) {
+        localStorage.setItem(API_MODE_STORAGE_KEY, apiMode);
+    }
+
+    const storedMode = localStorage.getItem(API_MODE_STORAGE_KEY) || apiMode || "";
+    if (storedMode === "local") return LOCAL_API_BASE_URL;
+    if (storedMode === "staging") return STAGING_API_BASE_URL;
+    if (storedMode === "prod") return PROD_API_BASE_URL;
+    if (window.location.hostname.includes("staging")) return STAGING_API_BASE_URL;
+    if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") {
+        return LOCAL_API_BASE_URL;
+    }
+    return PROD_API_BASE_URL;
+}
+
+function resolveDevTelegramUserId() {
+    const params = new URLSearchParams(window.location.search);
+    const value = params.get("tgUser");
+    if (value) {
+        localStorage.setItem(DEV_TELEGRAM_USER_ID_STORAGE_KEY, value);
+        return value;
+    }
+    return localStorage.getItem(DEV_TELEGRAM_USER_ID_STORAGE_KEY) || "";
+}
+
+function loadRecentRenders() {
+    try {
+        const raw = localStorage.getItem(RECENT_RENDERS_STORAGE_KEY);
+        const parsed = JSON.parse(raw || "[]");
+        return Array.isArray(parsed) ? parsed : [];
+    } catch {
+        return [];
+    }
+}
+
+const state = {
+    apiBaseUrl: resolveApiBaseUrl(),
+    devTelegramUserId: resolveDevTelegramUserId(),
+    view: "create",
+    menuOpen: false,
+    paymentStep: 1,
+    selectedAmount: 900,
+    email: "",
+    balance: null,
+    payments: [],
+    walletBusy: false,
+    walletMessage: "",
+    createScreen: "upload",
+    files: { car: null, wheel: null },
+    previewUrls: { car: "", wheel: "" },
+    jobId: null,
+    resultUrl: null,
+    resultDownloadUrl: null,
+    resultFileName: null,
+    downloading: false,
+    sharing: false,
+    submitting: false,
+    recentRenders: loadRecentRenders(),
+};
 
 function applyTranslations() {
     document.documentElement.lang = locale;
@@ -169,6 +438,55 @@ function applyTranslations() {
     });
 }
 
+function initTelegram() {
+    const localeLabel = document.querySelector("[data-locale-label]");
+    if (localeLabel) localeLabel.textContent = t("locale");
+
+    if (!HAS_TG) {
+        updateCreateFooter();
+        return;
+    }
+
+    tg.ready();
+    tg.expand();
+    updateCreateFooter();
+}
+
+function updateCreateFooter() {
+    const userInfo = document.querySelector("[data-user-info]");
+    if (!userInfo) return;
+    const user = tg?.initDataUnsafe?.user;
+    if (!user) {
+        userInfo.textContent = t("create.footerNotTelegram");
+        return;
+    }
+    const name = [user.first_name, user.last_name].filter(Boolean).join(" ") || `id ${user.id}`;
+    userInfo.textContent = `Telegram · ${name}`;
+}
+
+function haptic(type) {
+    if (!SUPPORTS_HAPTIC) return;
+    const h = tg.HapticFeedback;
+    if (!h) return;
+    if (type === "success") h.notificationOccurred("success");
+    else if (type === "error") h.notificationOccurred("error");
+    else if (type === "warning") h.notificationOccurred("warning");
+    else h.impactOccurred("light");
+}
+
+function formatRub(value) {
+    return new Intl.NumberFormat(locale === "ru" ? "ru-RU" : "en-US").format(Number(value || 0)) + " ₽";
+}
+
+function creditsForAmount(amount) {
+    const normalized = Number(amount);
+    if (normalized >= 1000) return Math.max(1, Math.floor(normalized / (1000 / 45)));
+    if (normalized >= 500) return Math.max(1, Math.floor(normalized / 25));
+    if (normalized >= 200) return Math.max(1, Math.floor(normalized / (200 / 7)));
+    if (normalized >= 100) return Math.max(1, Math.floor(normalized / (100 / 3)));
+    return 1;
+}
+
 function localizeErrorMessage(message) {
     if (locale === "en" && /[А-Яа-яЁё]/.test(message || "")) {
         return t("errors.requestFailed");
@@ -176,21 +494,336 @@ function localizeErrorMessage(message) {
     return message || t("errors.generic");
 }
 
-const SCREENS = ["upload", "result"];
-const state = {
-    screen: "upload",
-    files: { car: null, wheel: null },
-    jobId: null,
-    resultUrl: null,
-    resultDownloadUrl: null,
-    resultFileName: null,
-    downloading: false,
-    sharing: false,
-    submitting: false,
-};
+function getIdentityPayload({ includeTelegramUserId = false } = {}) {
+    if (HAS_TG && tg?.initData) {
+        const payload = { init_data: tg.initData };
+        if (includeTelegramUserId && tg.initDataUnsafe?.user?.id != null) {
+            payload.telegram_user_id = Number(tg.initDataUnsafe.user.id);
+        }
+        return payload;
+    }
+    if (state.devTelegramUserId) {
+        return { telegram_user_id: Number(state.devTelegramUserId) };
+    }
+    return {};
+}
 
-const DRAFT_DB_NAME = "dream-wheels-upload-draft";
-const DRAFT_STORE_NAME = "files";
+function getIdentitySearchParams() {
+    const params = new URLSearchParams();
+    const identity = getIdentityPayload();
+    if (identity.init_data) params.set("init_data", identity.init_data);
+    if (identity.telegram_user_id) params.set("telegram_user_id", String(identity.telegram_user_id));
+    return params;
+}
+
+async function parseApiError(response) {
+    let detail = response.statusText || t("failed");
+    try {
+        const body = await response.json();
+        detail = body?.detail || detail;
+    } catch {
+        // ignore
+    }
+    if (Array.isArray(detail)) {
+        return detail
+            .map((item) => item?.msg || item?.message || item?.type || JSON.stringify(item))
+            .filter(Boolean)
+            .join("; ");
+    }
+    if (detail && typeof detail === "object") {
+        return detail.message || detail.msg || JSON.stringify(detail);
+    }
+    return String(detail || t("failed"));
+}
+
+function persistRecentRenders() {
+    localStorage.setItem(RECENT_RENDERS_STORAGE_KEY, JSON.stringify(state.recentRenders.slice(0, 12)));
+}
+
+function addRecentRender(item) {
+    state.recentRenders = [item, ...state.recentRenders.filter((entry) => entry.jobId !== item.jobId)].slice(0, 12);
+    persistRecentRenders();
+    renderRenders();
+}
+
+function updateTopbarCaption() {
+    const caption = document.querySelector("[data-topbar-caption]");
+    if (caption) caption.textContent = t(`caption.${state.view}`);
+}
+
+function setMenuOpen(open) {
+    state.menuOpen = open;
+    const layer = document.querySelector("[data-menu-layer]");
+    const toggle = document.querySelector("[data-menu-toggle]");
+    if (layer) layer.hidden = !open;
+    if (toggle) toggle.setAttribute("aria-expanded", open ? "true" : "false");
+}
+
+function setView(view) {
+    state.view = view;
+    document.querySelectorAll("[data-view]").forEach((el) => {
+        el.hidden = el.dataset.view !== view;
+    });
+    document.querySelectorAll("[data-nav]").forEach((btn) => {
+        const active = btn.dataset.nav === view;
+        btn.classList.toggle("active", active);
+        btn.setAttribute("aria-current", active ? "page" : "false");
+    });
+    updateTopbarCaption();
+    setMenuOpen(false);
+    refreshButtonsForCurrentView();
+}
+
+function setPaymentStep(step) {
+    state.paymentStep = Math.max(1, Math.min(3, step));
+    document.querySelectorAll("[data-step]").forEach((el) => {
+        el.hidden = Number(el.dataset.step) !== state.paymentStep;
+    });
+    document.querySelectorAll("[data-step-tab]").forEach((tab) => {
+        tab.classList.toggle("active", Number(tab.dataset.stepTab) === state.paymentStep);
+    });
+    renderConfirmation();
+}
+
+function setSelectedAmount(amount) {
+    state.selectedAmount = amount;
+    document.querySelectorAll("[data-amount]").forEach((btn) => {
+        btn.classList.toggle("active", Number(btn.dataset.amount) === amount);
+    });
+    renderConfirmation();
+}
+
+function setWalletBusy(busy) {
+    state.walletBusy = busy;
+    document.querySelector("[data-pay-button]")?.toggleAttribute("disabled", busy);
+    document.querySelector("[data-reset-wizard]")?.toggleAttribute("disabled", busy);
+}
+
+function setWalletMessage(message, tone = "neutral") {
+    state.walletMessage = message;
+    const feedback = document.querySelector("[data-wallet-feedback]");
+    if (!feedback) return;
+    feedback.hidden = !message;
+    feedback.textContent = message;
+    feedback.className = `panel-note ${tone}`;
+}
+
+function getLastInvoice() {
+    return state.payments[0] || null;
+}
+
+function formatPaymentStatus(status) {
+    if (status === "paid") return t("paid");
+    if (status === "pending") return t("pending");
+    return t("created");
+}
+
+function statusTone(status) {
+    return status === "paid" ? "success" : "neutral";
+}
+
+function renderWallet() {
+    const balanceValue = document.querySelector("[data-balance-value]");
+    const balanceNote = document.querySelector("[data-balance-note]");
+    const lastInvoice = getLastInvoice();
+    const emptyBlock = document.querySelector("[data-last-invoice-empty]");
+    const cardBlock = document.querySelector("[data-last-invoice-card]");
+    const pill = document.querySelector("[data-last-invoice-pill]");
+    const history = document.querySelector("[data-payment-history]");
+    const statusPill = document.querySelector("[data-last-invoice-status]");
+
+    if (balanceValue) balanceValue.textContent = String(state.balance ?? "0");
+    if (balanceNote) balanceNote.textContent = t("wallet.starterGrant");
+
+    if (!lastInvoice) {
+        if (emptyBlock) emptyBlock.hidden = false;
+        if (cardBlock) cardBlock.hidden = true;
+        if (pill) {
+            pill.textContent = state.balance === null ? t("wallet.loading") : t("starter");
+            pill.className = "status-pill neutral";
+        }
+    } else {
+        if (emptyBlock) emptyBlock.hidden = true;
+        if (cardBlock) cardBlock.hidden = false;
+        if (pill) {
+            pill.textContent = formatPaymentStatus(lastInvoice.status);
+            pill.className = `status-pill ${statusTone(lastInvoice.status)}`;
+        }
+        if (statusPill) {
+            statusPill.textContent = formatPaymentStatus(lastInvoice.status);
+            statusPill.className = `status-pill ${statusTone(lastInvoice.status)}`;
+        }
+        document.querySelector("[data-last-invoice-amount]")?.replaceChildren(document.createTextNode(formatRub(lastInvoice.amount)));
+        document.querySelector("[data-last-invoice-email]")?.replaceChildren(document.createTextNode(lastInvoice.email || "—"));
+        document.querySelector("[data-last-invoice-credits]")?.replaceChildren(document.createTextNode(`${lastInvoice.credits} ${t("credits")}`));
+        document.querySelector("[data-last-invoice-state]")?.replaceChildren(document.createTextNode(formatPaymentStatus(lastInvoice.status)));
+        document.querySelector("[data-last-invoice-number]")?.replaceChildren(document.createTextNode(`#${String(lastInvoice.invoiceId).padStart(6, "0")}`));
+        document.querySelector("[data-last-invoice-meta]")?.replaceChildren(document.createTextNode(lastInvoice.createdAt));
+    }
+
+    if (!history) return;
+    if (!state.payments.length) {
+        history.innerHTML = `<div class="history-card"><div><strong>${t("wallet.emptyHistory")}</strong><div class="meta">${t("wallet.paymentHistoryHint")}</div></div></div>`;
+        return;
+    }
+    history.innerHTML = state.payments
+        .map((payment) => `
+            <div class="history-card">
+                <div>
+                    <strong>#${String(payment.invoiceId).padStart(6, "0")} · ${formatRub(payment.amount)}</strong>
+                    <div class="meta">${payment.email || "—"} · ${payment.createdAt}</div>
+                </div>
+                <span class="status-pill ${statusTone(payment.status)}">${formatPaymentStatus(payment.status)}</span>
+            </div>
+        `)
+        .join("");
+}
+
+function renderConfirmation() {
+    document.querySelector("[data-confirm-amount]")?.replaceChildren(document.createTextNode(formatRub(state.selectedAmount)));
+    document.querySelector("[data-confirm-email]")?.replaceChildren(document.createTextNode(state.email || "name@example.com"));
+    document.querySelector("[data-confirm-credits]")?.replaceChildren(document.createTextNode(`${creditsForAmount(state.selectedAmount)} ${t("credits")}`));
+}
+
+function renderRenders() {
+    const container = document.querySelector("[data-render-history]");
+    if (!container) return;
+    if (!state.recentRenders.length) {
+        container.innerHTML = `
+            <div class="history-card render-empty">
+                <div>
+                    <strong>${t("renders.empty")}</strong>
+                    <div class="meta">${state.apiBaseUrl}</div>
+                </div>
+            </div>
+        `;
+        return;
+    }
+    container.innerHTML = state.recentRenders
+        .map((render) => `
+            <article class="render-card">
+                <div class="render-thumb-wrap">
+                    ${render.resultUrl ? `<img src="${render.resultUrl}" alt="" class="render-thumb-image">` : `<div class="render-thumb"></div>`}
+                </div>
+                <div class="render-body">
+                    <div class="render-title">${render.fileName || `job ${render.jobId}`}</div>
+                    <div class="render-subtitle">${render.createdAt}</div>
+                    <div class="meta">${render.status === "completed" ? t("renders.completed") : t("renders.failed")}${render.error ? ` · ${render.error}` : ""}</div>
+                </div>
+                ${render.resultUrl ? `<button type="button" class="ghost-button compact-button" data-open-render="${render.resultUrl}">${t("actions.openRender")}</button>` : ""}
+            </article>
+        `)
+        .join("");
+}
+
+async function loadCabinet() {
+    const identity = getIdentitySearchParams();
+    if (!identity.toString()) {
+        setWalletMessage(t("wallet.authRequired"), "warning");
+        renderWallet();
+        return;
+    }
+
+    setWalletBusy(true);
+    setWalletMessage(t("wallet.loading"));
+    try {
+        const response = await fetch(`${state.apiBaseUrl}/payments/cabinet?${identity.toString()}`);
+        if (!response.ok) {
+            const detail = await parseApiError(response);
+            if (response.status === 403) {
+                setWalletMessage(t("wallet.fallbackDisabled"), "error");
+            } else {
+                setWalletMessage(detail, "error");
+            }
+            renderWallet();
+            return;
+        }
+        const cabinet = await response.json();
+        state.balance = cabinet.balance ?? 0;
+        state.payments = (cabinet.payments || []).map((payment) => ({
+            invoiceId: payment.invoice_id,
+            amount: payment.amount,
+            email: payment.email || "",
+            credits: payment.credits_granted || 0,
+            createdAt: new Date(payment.created_at).toLocaleString(locale === "ru" ? "ru-RU" : "en-US"),
+            status: payment.status,
+        }));
+        setWalletMessage("");
+        renderWallet();
+    } catch (error) {
+        setWalletMessage(error?.message || t("failed"), "error");
+        renderWallet();
+    } finally {
+        setWalletBusy(false);
+    }
+}
+
+function openExternal(url) {
+    if (HAS_TG && typeof tg?.openLink === "function") {
+        tg.openLink(url);
+        return;
+    }
+    window.open(url, "_blank", "noopener");
+}
+
+function openPaymentUrl(url) {
+    if (HAS_TG && typeof tg?.openLink === "function") {
+        tg.openLink(url);
+        return;
+    }
+    window.location.href = url;
+}
+
+async function createPayment() {
+    const identity = getIdentityPayload();
+    if (!identity.init_data && !identity.telegram_user_id) {
+        setWalletMessage(t("wallet.authRequired"), "warning");
+        return;
+    }
+
+    setWalletBusy(true);
+    setWalletMessage(t("wallet.openingPayment"));
+    try {
+        const response = await fetch(`${state.apiBaseUrl}/payments/topups`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                amount_rub: state.selectedAmount.toFixed(2),
+                email: state.email || null,
+                pricing_version: PRICING_VERSION,
+                source_screen: "cabinet",
+                ...identity,
+            }),
+        });
+        if (!response.ok) {
+            const detail = await parseApiError(response);
+            if (response.status === 403) {
+                setWalletMessage(t("wallet.fallbackDisabled"), "error");
+            } else {
+                setWalletMessage(detail, "error");
+            }
+            return;
+        }
+        const payment = await response.json();
+        await loadCabinet();
+        openPaymentUrl(payment.payment_url);
+    } catch (error) {
+        setWalletMessage(error?.message || t("failed"), "error");
+    } finally {
+        setWalletBusy(false);
+    }
+}
+
+function handlePaymentReturn() {
+    const paymentState = new URLSearchParams(window.location.search).get("payment");
+    if (paymentState === "success") {
+        setWalletMessage(t("wallet.paymentSuccess"), "success");
+        setView("wallet");
+    } else if (paymentState === "fail") {
+        setWalletMessage(t("wallet.paymentFail"), "warning");
+        setView("wallet");
+    }
+}
 
 function openDraftDb() {
     return new Promise((resolve, reject) => {
@@ -264,42 +897,48 @@ async function hydrateFilesFromDraft() {
         if (state.files[kind]?.blob) continue;
         try {
             const draft = await loadDraftFile(kind);
-            if (draft) state.files[kind] = draft;
-        } catch (_) {
-            // ignore IndexedDB restore issues and fall back to existing UI error
+            if (draft) {
+                state.files[kind] = draft;
+                renderPreviewFromFile(kind, draft);
+            }
+        } catch {
+            // ignore
         }
     }
 }
 
-/* ---------- Telegram bootstrap ---------- */
-
-function initTelegram() {
-    if (!HAS_TG) return;
-    tg.ready();
-    tg.expand();
-
-    const userInfo = document.querySelector("[data-user-info]");
-    const user = tg.initDataUnsafe?.user;
-    if (user) {
-        const name = [user.first_name, user.last_name].filter(Boolean).join(" ") || `id ${user.id}`;
-        userInfo.textContent = `Telegram · ${name}`;
+function revokePreviewUrl(kind) {
+    if (state.previewUrls[kind]) {
+        URL.revokeObjectURL(state.previewUrls[kind]);
+        state.previewUrls[kind] = "";
     }
 }
 
-function haptic(type) {
-    if (!SUPPORTS_HAPTIC) return;
-    const h = tg.HapticFeedback;
-    if (!h) return;
-    if (type === "success") h.notificationOccurred("success");
-    else if (type === "error") h.notificationOccurred("error");
-    else if (type === "warning") h.notificationOccurred("warning");
-    else h.impactOccurred("light");
+function renderPreviewFromFile(kind, fileLike) {
+    revokePreviewUrl(kind);
+    const img = document.querySelector(`[data-preview-img="${kind}"]`);
+    const preview = document.querySelector(`[data-preview="${kind}"]`);
+    const zone = document.querySelector(`[data-upload-zone="${kind}"]`);
+    if (!img || !preview || !zone || !fileLike?.blob) return;
+    const objectUrl = URL.createObjectURL(fileLike.blob);
+    state.previewUrls[kind] = objectUrl;
+    img.src = objectUrl;
+    preview.hidden = false;
+    zone.hidden = true;
 }
 
-/* ---------- Main button (native or fallback) ---------- */
+function showCreateScreen(name) {
+    state.createScreen = name;
+    document.querySelectorAll("[data-create-screen]").forEach((el) => {
+        el.hidden = el.dataset.createScreen !== name;
+    });
+    document.querySelector("[data-step-indicator]")?.replaceChildren(document.createTextNode(name === "result" ? t("steps.result") : t("steps.upload")));
+    refreshButtonsForCurrentView();
+}
 
 let mainButtonHandler = null;
 let fallbackButton = null;
+let backButtonHandler = null;
 
 function ensureFallbackButton() {
     if (fallbackButton) return fallbackButton;
@@ -316,23 +955,19 @@ function ensureFallbackButton() {
 
 function setMainButton({ text, enabled = true, onClick = null }) {
     mainButtonHandler = onClick;
-
     if (HAS_TG && tg.MainButton) {
         tg.MainButton.setText(text);
-        if (enabled) {
-            tg.MainButton.enable();
-        } else {
-            tg.MainButton.disable();
-        }
+        if (enabled) tg.MainButton.enable();
+        else tg.MainButton.disable();
         tg.MainButton.offClick();
         if (onClick) tg.MainButton.onClick(onClick);
         tg.MainButton.show();
-    } else {
-        const btn = ensureFallbackButton();
-        btn.textContent = text;
-        btn.disabled = !enabled;
-        btn.hidden = !onClick;
+        return;
     }
+    const btn = ensureFallbackButton();
+    btn.textContent = text;
+    btn.disabled = !enabled;
+    btn.hidden = !onClick;
 }
 
 function hideMainButton() {
@@ -345,14 +980,8 @@ function hideMainButton() {
     }
 }
 
-/* ---------- Back button ---------- */
-
-let backButtonHandler = null;
-
 function setBackButton(onClick) {
     backButtonHandler = onClick;
-    // На старых клиентах (или в браузере для дебага) BackButton отсутствует —
-    // молча игнорируем. Юзер вернётся через стандартную кнопку Telegram-чата.
     if (!SUPPORTS_BACK_BUTTON) return;
     tg.BackButton.offClick();
     if (onClick) {
@@ -363,43 +992,36 @@ function setBackButton(onClick) {
     }
 }
 
-/* ---------- Screen navigation ---------- */
-
-function showScreen(name) {
-    state.screen = name;
-    SCREENS.forEach((s) => {
-        const el = document.querySelector(`[data-screen="${s}"]`);
-        el.hidden = s !== name;
-    });
-
-    const indicator = document.querySelector("[data-step-indicator]");
-    indicator.textContent = name === "result" ? t("steps.result") : t("steps.upload");
-
-    refreshButtonsForScreen();
-}
-
-function refreshButtonsForScreen() {
-    if (state.screen === "upload") {
+function refreshButtonsForCurrentView() {
+    if (state.view !== "create") {
+        hideMainButton();
         setBackButton(null);
+        return;
+    }
+
+    if (state.createScreen === "upload") {
         const ready = Boolean(state.files.car?.blob && state.files.wheel?.blob);
+        setBackButton(null);
         setMainButton({
             text: t("actions.createRender"),
             enabled: ready && !state.submitting,
             onClick: ready && !state.submitting ? submitJob : null,
         });
-    } else if (state.screen === "result") {
-        if (state.submitting) {
-            setBackButton(null);
-            hideMainButton();
-        } else {
-            setBackButton(() => resetFlow());
-            setMainButton({
-                text: t("actions.createAnother"),
-                enabled: true,
-                onClick: resetFlow,
-            });
-        }
+        return;
     }
+
+    if (state.submitting) {
+        setBackButton(null);
+        hideMainButton();
+        return;
+    }
+
+    setBackButton(() => resetFlow());
+    setMainButton({
+        text: t("actions.createAnother"),
+        enabled: true,
+        onClick: resetFlow,
+    });
 }
 
 function resetFlow() {
@@ -407,108 +1029,52 @@ function resetFlow() {
     state.sharing = false;
     state.submitting = false;
     state.files = { car: null, wheel: null };
+    revokePreviewUrl("car");
+    revokePreviewUrl("wheel");
     void deleteDraftFile("car");
     void deleteDraftFile("wheel");
     state.jobId = null;
     state.resultUrl = null;
     state.resultDownloadUrl = null;
     state.resultFileName = null;
-    ["car", "wheel"].forEach((s) => {
-        const preview = document.querySelector(`[data-preview="${s}"]`);
-        const zone = document.querySelector(`[data-upload-zone="${s}"]`);
-        if (preview) preview.hidden = true;
-        if (zone) zone.hidden = false;
-    });
-    const downloadButton = document.querySelector("[data-download-result]");
-    if (downloadButton) {
-        downloadButton.hidden = true;
-        setDownloadButtonState();
-    }
-    const shareButton = document.querySelector("[data-share-result]");
-    if (shareButton) {
-        shareButton.hidden = true;
-        setShareButtonState();
-    }
-    document.querySelectorAll("input[data-input]").forEach((i) => (i.value = ""));
-    showScreen("upload");
-}
-
-/* ---------- File handling ---------- */
-
-function attachFileHandlers() {
     document.querySelectorAll("input[data-input]").forEach((input) => {
-        const kind = input.dataset.input;
-        input.addEventListener("change", (e) => {
-            const file = e.target.files?.[0];
-            if (!file) return;
-            handleFileSelected(kind, file);
-        });
+        input.value = "";
     });
-
-    document.querySelectorAll("[data-clear]").forEach((btn) => {
-        btn.addEventListener("click", () => {
-            const kind = btn.dataset.clear;
-            state.files[kind] = null;
-            void deleteDraftFile(kind);
-            const input = document.querySelector(`input[data-input="${kind}"]`);
-            if (input) input.value = "";
-            const preview = document.querySelector(`[data-preview="${kind}"]`);
-            const zone = document.querySelector(`[data-upload-zone="${kind}"]`);
-            if (preview) preview.hidden = true;
-            if (zone) zone.hidden = false;
-            refreshButtonsForScreen();
-        });
+    ["car", "wheel"].forEach((kind) => {
+        document.querySelector(`[data-preview="${kind}"]`)?.toggleAttribute("hidden", true);
+        document.querySelector(`[data-upload-zone="${kind}"]`)?.toggleAttribute("hidden", false);
     });
-}
-
-function handleFileSelected(kind, file) {
-    // iOS Telegram WebView теряет File reference при переходах между экранами,
-    // поэтому читаем содержимое в Blob сразу и храним его — Blob можно передать
-    // в FormData точно так же как File. Параллельно делаем data-URL preview.
-    file.arrayBuffer().then((buf) => {
-        state.files[kind] = {
-            blob: new Blob([buf], { type: file.type }),
-            name: file.name,
-            size: file.size,
-            type: file.type,
-        };
-        void saveDraftFile(kind, file, buf);
-        refreshButtonsForScreen();
-    });
-
-    const reader = new FileReader();
-    reader.onload = (e) => {
-        const img = document.querySelector(`[data-preview-img="${kind}"]`);
-        const preview = document.querySelector(`[data-preview="${kind}"]`);
-        const zone = document.querySelector(`[data-upload-zone="${kind}"]`);
-        if (img) img.src = e.target.result;
-        if (preview) preview.hidden = false;
-        if (zone) zone.hidden = true;
-    };
-    reader.readAsDataURL(file);
-    haptic("light");
+    const resultImg = document.querySelector("[data-result-img]");
+    if (resultImg) {
+        resultImg.hidden = true;
+        resultImg.removeAttribute("src");
+    }
+    document.querySelector("[data-download-result]")?.toggleAttribute("hidden", true);
+    document.querySelector("[data-share-result]")?.toggleAttribute("hidden", true);
+    setDownloadButtonState();
+    setShareButtonState();
+    showCreateScreen("upload");
+    setView("create");
 }
 
 function setDownloadButtonState({ disabled = false, text = t("actions.downloadImage") } = {}) {
-    const downloadButton = document.querySelector("[data-download-result]");
-    if (!downloadButton) return;
-    downloadButton.disabled = disabled;
-    downloadButton.textContent = text;
+    const button = document.querySelector("[data-download-result]");
+    if (!button) return;
+    button.disabled = disabled;
+    button.textContent = text;
 }
 
 function setShareButtonState({ disabled = false, text = t("actions.share") } = {}) {
-    const shareButton = document.querySelector("[data-share-result]");
-    if (!shareButton) return;
-    shareButton.disabled = disabled;
-    shareButton.textContent = text;
+    const button = document.querySelector("[data-share-result]");
+    if (!button) return;
+    button.disabled = disabled;
+    button.textContent = text;
 }
 
 function requestTelegramDownload(url, fileName) {
     return new Promise((resolve, reject) => {
         try {
-            tg.downloadFile({ url, file_name: fileName }, (accepted) => {
-                resolve(Boolean(accepted));
-            });
+            tg.downloadFile({ url, file_name: fileName }, (accepted) => resolve(Boolean(accepted)));
         } catch (error) {
             reject(error);
         }
@@ -517,10 +1083,8 @@ function requestTelegramDownload(url, fileName) {
 
 async function downloadResult() {
     if (!state.resultDownloadUrl || state.downloading) return;
-
     state.downloading = true;
     setDownloadButtonState({ disabled: true, text: t("actions.requestingDownload") });
-
     try {
         if (SUPPORTS_DOWNLOAD_FILE) {
             const accepted = await requestTelegramDownload(
@@ -548,14 +1112,10 @@ async function downloadResult() {
     } catch (error) {
         console.error("[DW] download failed", error);
         setDownloadButtonState({ disabled: false, text: t("actions.downloadFailed") });
-        setTimeout(() => {
-            setDownloadButtonState();
-        }, 1800);
         haptic("warning");
         state.downloading = false;
         return;
     }
-
     setTimeout(() => {
         state.downloading = false;
         setDownloadButtonState();
@@ -567,23 +1127,6 @@ function buildTelegramShareUrl() {
     return `https://t.me/share/url?url=${encodeURIComponent(state.resultUrl)}&text=${encodeURIComponent(text)}`;
 }
 
-function openTelegramShareUrl() {
-    const shareUrl = buildTelegramShareUrl();
-
-    if (HAS_TG && typeof tg.openTelegramLink === "function") {
-        tg.openTelegramLink(shareUrl);
-        return true;
-    }
-
-    if (HAS_TG && typeof tg.openLink === "function") {
-        tg.openLink(shareUrl);
-        return true;
-    }
-
-    window.location.href = shareUrl;
-    return true;
-}
-
 async function copyResultUrl() {
     if (!navigator.clipboard?.writeText) {
         throw new Error("Clipboard API unavailable");
@@ -593,19 +1136,20 @@ async function copyResultUrl() {
 
 async function shareResult() {
     if (!state.resultUrl || state.sharing) return;
-
     state.sharing = true;
     setShareButtonState({ disabled: true, text: t("actions.preparing") });
-
     try {
         const shareData = {
             title: "Dream Wheels AI",
             text: `${t("share.text")}\n${state.resultUrl}`,
             url: state.resultUrl,
         };
-
-        if (HAS_TG) {
-            openTelegramShareUrl();
+        if (HAS_TG && typeof tg.openTelegramLink === "function") {
+            tg.openTelegramLink(buildTelegramShareUrl());
+            setShareButtonState({ text: t("actions.openingTelegram") });
+            haptic("success");
+        } else if (HAS_TG && typeof tg.openLink === "function") {
+            tg.openLink(buildTelegramShareUrl());
             setShareButtonState({ text: t("actions.openingTelegram") });
             haptic("success");
         } else if (navigator.share) {
@@ -616,7 +1160,7 @@ async function shareResult() {
             try {
                 await copyResultUrl();
                 setShareButtonState({ text: t("actions.linkCopied") });
-            } catch (_) {
+            } catch {
                 window.open(buildTelegramShareUrl(), "_blank", "noopener");
                 setShareButtonState({ text: t("actions.openingLink") });
             }
@@ -625,57 +1169,31 @@ async function shareResult() {
     } catch (error) {
         if (error?.name === "AbortError") {
             setShareButtonState({ text: t("actions.canceled") });
-            haptic("warning");
         } else {
             console.error("[DW] share failed", error);
             setShareButtonState({ disabled: false, text: t("actions.failed") });
-            haptic("warning");
         }
+        haptic("warning");
     }
-
     setTimeout(() => {
         state.sharing = false;
         setShareButtonState();
     }, 1600);
 }
 
-function attachResultHandlers() {
-    const downloadButton = document.querySelector("[data-download-result]");
-    if (downloadButton) {
-        downloadButton.addEventListener("click", () => {
-            downloadResult();
-        });
-    }
-
-    const shareButton = document.querySelector("[data-share-result]");
-    if (shareButton) {
-        shareButton.addEventListener("click", () => {
-            shareResult();
-        });
-    }
-}
-
-/* ---------- Submit ---------- */
-
-const API_BASE_URL = "https://dream-wheels-ai-robokassa-staging.onrender.com";
-const POLL_INTERVAL_MS = 3000;
-const POLL_TIMEOUT_MS = 110000; // Reve timeout 90s + margin
-
 function sleep(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function makeIdempotencyKey() {
-    if (globalThis.crypto?.randomUUID) {
-        return globalThis.crypto.randomUUID();
-    }
+    if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
     return `dw-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
 async function submitJob() {
     if (state.submitting) return;
     state.submitting = true;
-    showScreen("result");
+    showCreateScreen("result");
     haptic("light");
 
     const statusBlock = document.querySelector("[data-status]");
@@ -698,54 +1216,53 @@ async function submitJob() {
         }
     }
 
-    statusBlock.hidden = false;
-    resultBlock.hidden = true;
-    errorBlock.hidden = true;
-    statusText.textContent = t("status.startingServer");
-    statusSub.textContent = t("status.coldStart");
+    function showError(message) {
+        state.submitting = false;
+        if (statusBlock) statusBlock.hidden = true;
+        if (resultBlock) resultBlock.hidden = true;
+        if (errorBlock) errorBlock.hidden = false;
+        if (errorText) errorText.textContent = localizeErrorMessage(message);
+        addRecentRender({
+            jobId: state.jobId || makeIdempotencyKey(),
+            fileName: state.files.car?.name || "render",
+            createdAt: new Date().toLocaleString(locale === "ru" ? "ru-RU" : "en-US"),
+            status: "failed",
+            error: localizeErrorMessage(message),
+            resultUrl: "",
+        });
+        refreshButtonsForCurrentView();
+        pushDebug("showError", message);
+        haptic("error");
+    }
+
+    if (statusBlock) statusBlock.hidden = false;
+    if (resultBlock) resultBlock.hidden = true;
+    if (errorBlock) errorBlock.hidden = true;
+    if (statusText) statusText.textContent = t("status.startingServer");
+    if (statusSub) statusSub.textContent = t("status.coldStart");
     if (statusDebug) {
         statusDebug.hidden = true;
         statusDebug.textContent = "";
     }
 
-    function showError(msg) {
-        state.submitting = false;
-        statusBlock.hidden = true;
-        resultBlock.hidden = true;
-        errorBlock.hidden = false;
-        if (errorText) errorText.textContent = localizeErrorMessage(msg);
-        refreshButtonsForScreen();
-        pushDebug("showError", msg);
-        haptic("error");
-    }
-
     pushDebug("submit:start");
-    pushDebug("api:base", API_BASE_URL);
+    pushDebug("api:base", state.apiBaseUrl);
 
-    // Render Free tier спит после 15 мин простоя — пингуем /health чтобы
-    // разбудить сервис до отправки файлов (cold start ~30с).
     try {
         pushDebug("health:request");
-        await fetch(`${API_BASE_URL}/health`, { method: "GET" });
+        await fetch(`${state.apiBaseUrl}/health`, { method: "GET" });
         pushDebug("health:ok");
-    } catch (_) {
+    } catch {
         pushDebug("health:fail");
-        // ignore — if health fails, upload will fail too and show proper error
     }
 
-    statusText.textContent = t("status.uploading");
-    statusSub.textContent = t("status.upTo90");
+    if (statusText) statusText.textContent = t("status.uploading");
+    if (statusSub) statusSub.textContent = t("status.upTo90");
 
-    console.log("[DW] submit state:", {
-        carName: state.files.car?.name,
-        carBlobSize: state.files.car?.blob?.size,
-        carSize: state.files.car?.size,
-        wheelName: state.files.wheel?.name,
-        wheelBlobSize: state.files.wheel?.blob?.size,
-        wheelSize: state.files.wheel?.size,
-        hasTG: HAS_TG,
-        initDataLen: HAS_TG ? (tg.initData || "").length : 0,
-    });
+    if (!state.files.car?.blob || !state.files.wheel?.blob) {
+        await hydrateFilesFromDraft();
+    }
+
     pushDebug(
         "files",
         JSON.stringify({
@@ -759,19 +1276,6 @@ async function submitJob() {
     );
 
     if (!state.files.car?.blob || !state.files.wheel?.blob) {
-        await hydrateFilesFromDraft();
-        pushDebug(
-            "files:restored",
-            JSON.stringify({
-                carName: state.files.car?.name,
-                carBlobSize: state.files.car?.blob?.size,
-                wheelName: state.files.wheel?.name,
-                wheelBlobSize: state.files.wheel?.blob?.size,
-            })
-        );
-    }
-
-    if (!state.files.car?.blob || !state.files.wheel?.blob) {
         showError(t("errors.missingFiles"));
         return;
     }
@@ -779,20 +1283,18 @@ async function submitJob() {
     const formData = new FormData();
     formData.append("car_image", state.files.car.blob, state.files.car.name);
     formData.append("wheel_image", state.files.wheel.blob, state.files.wheel.name);
-    formData.append("init_data", HAS_TG ? tg.initData : "");
-    const telegramUserId = HAS_TG ? tg.initDataUnsafe?.user?.id : null;
-    if (telegramUserId != null) {
-        formData.append("telegram_user_id", String(telegramUserId));
+    const identity = getIdentityPayload({ includeTelegramUserId: true });
+    if (identity.init_data) formData.append("init_data", identity.init_data);
+    if (identity.telegram_user_id != null) {
+        formData.append("telegram_user_id", String(identity.telegram_user_id));
     }
-    pushDebug("telegram_user_id", telegramUserId == null ? "missing" : "present");
     const idempotencyKey = makeIdempotencyKey();
     formData.append("idempotency_key", idempotencyKey);
     pushDebug("upload:key", idempotencyKey);
 
-    let jobId;
     try {
         pushDebug("upload:request");
-        const resp = await fetch(`${API_BASE_URL}/jobs/upload`, {
+        const resp = await fetch(`${state.apiBaseUrl}/jobs/upload`, {
             method: "POST",
             body: formData,
         });
@@ -801,19 +1303,18 @@ async function submitJob() {
         pushDebug("upload:body", JSON.stringify(data));
         if (!resp.ok) {
             const detail = Array.isArray(data.detail)
-                ? data.detail.map((e) => e.msg).join("; ")
+                ? data.detail.map((entry) => entry.msg).join("; ")
                 : (data.detail || `HTTP ${resp.status}`);
             throw new Error(detail);
         }
-        jobId = data.job_id;
-        state.jobId = jobId;
-        pushDebug("upload:job", jobId);
-    } catch (e) {
-        showError(e.message);
+        state.jobId = data.job_id;
+        pushDebug("upload:job", state.jobId);
+    } catch (error) {
+        showError(error.message);
         return;
     }
 
-    statusText.textContent = t("status.generating");
+    if (statusText) statusText.textContent = t("status.generating");
     pushDebug("poll:start");
 
     const deadline = Date.now() + POLL_TIMEOUT_MS;
@@ -821,56 +1322,173 @@ async function submitJob() {
         await sleep(POLL_INTERVAL_MS);
         let statusData;
         try {
-            pushDebug("poll:request", jobId);
-            const r = await fetch(`${API_BASE_URL}/jobs/${jobId}/status`);
-            statusData = await r.json();
+            pushDebug("poll:request", state.jobId);
+            const response = await fetch(`${state.apiBaseUrl}/jobs/${state.jobId}/status`);
+            statusData = await response.json();
             pushDebug("poll:response", JSON.stringify(statusData));
-        } catch (_) {
+        } catch {
             pushDebug("poll:network-fail");
             continue;
         }
 
         if (statusData.status === "completed") {
             state.submitting = false;
-            statusBlock.hidden = true;
+            state.resultUrl = statusData.result_url || "";
+            state.resultDownloadUrl = `${state.apiBaseUrl}/jobs/${state.jobId}/download`;
+            state.resultFileName = `dream-wheels-${state.jobId}.jpg`;
+            if (statusBlock) statusBlock.hidden = true;
+            if (resultBlock) resultBlock.hidden = false;
             if (resultImg && statusData.result_url) {
-                state.resultUrl = statusData.result_url;
-                state.resultDownloadUrl = `${API_BASE_URL}/jobs/${jobId}/download`;
-                state.resultFileName = `dream-wheels-${jobId}.jpg`;
                 resultImg.src = statusData.result_url;
                 resultImg.hidden = false;
             }
-            const downloadButton = document.querySelector("[data-download-result]");
-            if (downloadButton) {
-                setDownloadButtonState();
-                downloadButton.hidden = !state.resultDownloadUrl;
-            }
-            const shareButton = document.querySelector("[data-share-result]");
-            if (shareButton) {
-                setShareButtonState();
-                shareButton.hidden = !state.resultUrl;
-            }
-            resultBlock.hidden = false;
-            refreshButtonsForScreen();
+            document.querySelector("[data-download-result]")?.toggleAttribute("hidden", !state.resultDownloadUrl);
+            document.querySelector("[data-share-result]")?.toggleAttribute("hidden", !state.resultUrl);
+            setDownloadButtonState();
+            setShareButtonState();
+            addRecentRender({
+                jobId: state.jobId,
+                fileName: state.files.car?.name || `render ${state.jobId}`,
+                createdAt: new Date().toLocaleString(locale === "ru" ? "ru-RU" : "en-US"),
+                status: "completed",
+                resultUrl: state.resultUrl,
+                error: "",
+            });
+            refreshButtonsForCurrentView();
             pushDebug("poll:completed");
             haptic("success");
             return;
         }
+
         if (statusData.status === "failed") {
             showError(statusData.error || t("errors.generationFailed"));
             return;
         }
     }
+
     pushDebug("poll:timeout");
     showError(t("errors.timeout"));
 }
 
-/* ---------- Boot ---------- */
+function handleFileSelected(kind, file) {
+    file.arrayBuffer().then((buffer) => {
+        state.files[kind] = {
+            blob: new Blob([buffer], { type: file.type }),
+            name: file.name,
+            size: file.size,
+            type: file.type,
+        };
+        void saveDraftFile(kind, file, buffer);
+        renderPreviewFromFile(kind, state.files[kind]);
+        refreshButtonsForCurrentView();
+    });
+    haptic("light");
+}
 
-document.addEventListener("DOMContentLoaded", () => {
+function bindEvents() {
+    document.querySelector("[data-menu-toggle]")?.addEventListener("click", () => {
+        setMenuOpen(!state.menuOpen);
+    });
+
+    document.querySelectorAll("[data-nav]").forEach((button) => {
+        button.addEventListener("click", () => setView(button.dataset.nav));
+    });
+
+    document.querySelectorAll("[data-step-tab]").forEach((button) => {
+        button.addEventListener("click", () => setPaymentStep(Number(button.dataset.stepTab)));
+    });
+
+    document.querySelectorAll("[data-amount]").forEach((button) => {
+        button.addEventListener("click", () => setSelectedAmount(Number(button.dataset.amount)));
+    });
+
+    document.querySelector("[data-next-step][data-target-step='2']")?.addEventListener("click", () => setPaymentStep(2));
+    document.querySelector("[data-next-step][data-target-step='3']")?.addEventListener("click", () => setPaymentStep(3));
+    document.querySelectorAll("[data-prev-step]").forEach((button) => {
+        button.addEventListener("click", () => setPaymentStep(Number(button.dataset.targetStep)));
+    });
+
+    document.querySelector("[data-email-input]")?.addEventListener("input", (event) => {
+        state.email = event.target.value.trim();
+        renderConfirmation();
+    });
+
+    document.querySelector("[data-pay-button]")?.addEventListener("click", createPayment);
+    document.querySelector("[data-reset-wizard]")?.addEventListener("click", () => {
+        state.paymentStep = 1;
+        state.selectedAmount = 900;
+        state.email = "";
+        const input = document.querySelector("[data-email-input]");
+        if (input) input.value = "";
+        setSelectedAmount(state.selectedAmount);
+        setPaymentStep(1);
+        renderConfirmation();
+        setWalletMessage("");
+    });
+
+    document.querySelectorAll("input[data-input]").forEach((input) => {
+        const kind = input.dataset.input;
+        input.addEventListener("change", (event) => {
+            const file = event.target.files?.[0];
+            if (!file) return;
+            handleFileSelected(kind, file);
+        });
+    });
+
+    document.querySelectorAll("[data-clear]").forEach((button) => {
+        button.addEventListener("click", () => {
+            const kind = button.dataset.clear;
+            state.files[kind] = null;
+            revokePreviewUrl(kind);
+            void deleteDraftFile(kind);
+            const input = document.querySelector(`input[data-input="${kind}"]`);
+            if (input) input.value = "";
+            document.querySelector(`[data-preview="${kind}"]`)?.toggleAttribute("hidden", true);
+            document.querySelector(`[data-upload-zone="${kind}"]`)?.toggleAttribute("hidden", false);
+            refreshButtonsForCurrentView();
+        });
+    });
+
+    document.querySelector("[data-download-result]")?.addEventListener("click", downloadResult);
+    document.querySelector("[data-share-result]")?.addEventListener("click", shareResult);
+
+    document.addEventListener("click", (event) => {
+        const openRenderButton = event.target.closest("[data-open-render]");
+        if (openRenderButton) {
+            openExternal(openRenderButton.dataset.openRender);
+            return;
+        }
+
+        const layer = document.querySelector("[data-menu-layer]");
+        const toggle = document.querySelector("[data-menu-toggle]");
+        if (!state.menuOpen || !layer || !toggle) return;
+        if (layer.contains(event.target) || toggle.contains(event.target)) return;
+        setMenuOpen(false);
+    });
+}
+
+document.addEventListener("DOMContentLoaded", async () => {
     applyTranslations();
     initTelegram();
-    attachFileHandlers();
-    attachResultHandlers();
-    showScreen("upload");
+    bindEvents();
+    handlePaymentReturn();
+
+    const emailInput = document.querySelector("[data-email-input]");
+    if (emailInput) emailInput.value = state.email;
+
+    setSelectedAmount(state.selectedAmount);
+    setPaymentStep(1);
+    renderWallet();
+    renderRenders();
+    updateTopbarCaption();
+    setMenuOpen(false);
+    showCreateScreen("upload");
+
+    await hydrateFilesFromDraft();
+    refreshButtonsForCurrentView();
+    await loadCabinet();
+
+    if (!new URLSearchParams(window.location.search).get("payment")) {
+        setView("create");
+    }
 });

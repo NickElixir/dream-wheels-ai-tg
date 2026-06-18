@@ -1,89 +1,366 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ru">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <meta name="theme-color" content="#0a0a0b">
+    <meta name="theme-color" content="#0a0b0e">
     <title>Dream Wheels AI</title>
-    <link rel="stylesheet" href="style.css?v=20260617-5">
+    <link rel="stylesheet" href="style.css?v=20260618-2">
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
     <main id="app">
         <header class="topbar">
-            <div class="logo">DREAM<span>WHEELS</span> AI</div>
-            <div class="step-indicator" data-step-indicator data-i18n="steps.upload">Upload</div>
+            <div class="brand-wordmark">
+                <span class="brand-light">DREAM</span><span class="brand-dim">WHEELS AI</span>
+            </div>
+            <div class="topbar-actions">
+                <div class="topbar-caption" data-topbar-caption>Кабинет</div>
+                <button type="button" class="menu-button" data-menu-toggle aria-expanded="false" aria-label="Открыть меню">
+                    <span aria-hidden="true">☰</span>
+                </button>
+            </div>
         </header>
 
-        <section class="screen" data-screen="upload" hidden>
-            <h1 data-i18n="upload.title">Upload your car and wheel photos</h1>
-            <p class="hint" data-i18n="upload.hint">
-                Full side view of the car, front view of the wheel. JPG or PNG, up to 10 MB.
-            </p>
+        <nav class="menu-layer" data-menu-layer hidden aria-label="Навигация кабинета">
+            <button type="button" class="menu-item active" data-nav="create">
+                <span class="menu-icon" aria-hidden="true">✨</span>
+                <span class="menu-text" data-i18n="menu.create">Создать рендер</span>
+            </button>
+            <button type="button" class="menu-item" data-nav="wallet">
+                <span class="menu-icon" aria-hidden="true">👛</span>
+                <span class="menu-text" data-i18n="menu.wallet">Кошелек</span>
+            </button>
+            <button type="button" class="menu-item" data-nav="renders">
+                <span class="menu-icon" aria-hidden="true">🖼️</span>
+                <span class="menu-text" data-i18n="menu.renders">История рендеров</span>
+            </button>
+            <button type="button" class="menu-item" data-nav="settings">
+                <span class="menu-icon" aria-hidden="true">⚙️</span>
+                <span class="menu-text" data-i18n="menu.settings">Настройки</span>
+            </button>
+            <button type="button" class="menu-item" data-nav="support">
+                <span class="menu-icon" aria-hidden="true">💬</span>
+                <span class="menu-text" data-i18n="menu.support">Поддержка</span>
+            </button>
+            <button type="button" class="menu-item" data-nav="docs">
+                <span class="menu-icon" aria-hidden="true">📄</span>
+                <span class="menu-text" data-i18n="menu.docs">Документы</span>
+            </button>
+        </nav>
 
-            <label class="dropzone" data-upload-zone="car">
-                <input type="file" accept="image/*" data-input="car" hidden>
-                <div class="dropzone-icon">📷</div>
-                <div class="dropzone-text" data-i18n="upload.carPhoto">Car photo</div>
-                <div class="dropzone-sub" data-i18n="upload.choose">Tap to choose</div>
-            </label>
-            <div class="preview" data-preview="car" hidden>
-                <img alt="Car preview" data-preview-img="car" data-i18n-alt="upload.carPreviewAlt">
-                <button type="button" class="link" data-clear="car" data-i18n="upload.replaceCar">
-                    Replace car
-                </button>
-            </div>
+        <section class="view" data-view="create">
+            <section class="hero-panel compact">
+                <div class="hero-copy">
+                    <p class="eyebrow" data-i18n="create.eyebrow">Главный экран</p>
+                    <h1 data-i18n="create.title">Загрузи фото машины и диска</h1>
+                    <p class="lede" data-i18n="create.lede">
+                        Машина целиком сбоку, диск анфас. JPG или PNG, до 10 MB.
+                    </p>
+                </div>
+            </section>
 
-            <label class="dropzone" data-upload-zone="wheel">
-                <input type="file" accept="image/*" data-input="wheel" hidden>
-                <div class="dropzone-icon">⚙️</div>
-                <div class="dropzone-text" data-i18n="upload.wheelPhoto">Wheel photo</div>
-                <div class="dropzone-sub" data-i18n="upload.choose">Tap to choose</div>
-            </label>
-            <div class="preview" data-preview="wheel" hidden>
-                <img alt="Wheel preview" data-preview-img="wheel" data-i18n-alt="upload.wheelPreviewAlt">
-                <button type="button" class="link" data-clear="wheel" data-i18n="upload.replaceWheel">
-                    Replace wheel
-                </button>
-            </div>
+            <section class="panel" data-create-screen="upload">
+                <label class="dropzone" data-upload-zone="car">
+                    <input type="file" accept="image/*" data-input="car" hidden>
+                    <div class="dropzone-icon">📷</div>
+                    <div class="dropzone-text" data-i18n="create.carPhoto">Фото машины</div>
+                    <div class="dropzone-sub" data-i18n="create.choose">Нажми, чтобы выбрать</div>
+                </label>
+                <div class="preview" data-preview="car" hidden>
+                    <img alt="Car preview" data-preview-img="car" data-i18n-alt="create.carPreviewAlt">
+                    <button type="button" class="link-button" data-clear="car" data-i18n="create.replaceCar">Заменить машину</button>
+                </div>
+
+                <label class="dropzone" data-upload-zone="wheel">
+                    <input type="file" accept="image/*" data-input="wheel" hidden>
+                    <div class="dropzone-icon">⚙️</div>
+                    <div class="dropzone-text" data-i18n="create.wheelPhoto">Фото диска</div>
+                    <div class="dropzone-sub" data-i18n="create.choose">Нажми, чтобы выбрать</div>
+                </label>
+                <div class="preview" data-preview="wheel" hidden>
+                    <img alt="Wheel preview" data-preview-img="wheel" data-i18n-alt="create.wheelPreviewAlt">
+                    <button type="button" class="link-button" data-clear="wheel" data-i18n="create.replaceWheel">Заменить диск</button>
+                </div>
+            </section>
+
+            <section class="panel result-panel" data-create-screen="result" hidden>
+                <div class="status-block" data-status>
+                    <div class="spinner" data-spinner></div>
+                    <div class="status-text" data-status-text data-i18n="status.creating">Создаём задачу...</div>
+                    <div class="status-sub" data-status-sub data-i18n="status.upTo90">Это может занять до 90 секунд</div>
+                    <pre class="status-debug" data-status-debug hidden></pre>
+                </div>
+                <div class="result-block" data-result hidden>
+                    <img data-result-img hidden alt="AI render" data-i18n-alt="result.imageAlt" class="result-image">
+                    <div class="result-actions">
+                        <button type="button" class="ghost-button compact-button" data-download-result data-i18n="actions.download" hidden>Скачать</button>
+                        <button type="button" class="ghost-button compact-button" data-share-result data-i18n="actions.share" hidden>Поделиться</button>
+                    </div>
+                    <div class="result-icon">✅</div>
+                    <p class="result-title" data-i18n="result.title">Готово!</p>
+                    <p class="result-caption" data-i18n="result.caption">Ваш рендер с новыми дисками готов.</p>
+                </div>
+                <div class="error-block" data-error hidden>
+                    <div class="error-icon">⚠️</div>
+                    <div class="error-text" data-error-text data-i18n="errors.generic">Что-то пошло не так</div>
+                </div>
+            </section>
+
+            <footer class="miniapp-footer">
+                <span data-user-info data-i18n="create.footerNotTelegram">Не в Telegram</span>
+                <span class="dot">·</span>
+                <span>2026</span>
+            </footer>
         </section>
 
-        <section class="screen" data-screen="result" hidden>
-            <div class="status-block" data-status>
-                <div class="spinner" data-spinner></div>
-                <div class="status-text" data-status-text data-i18n="status.creating">Creating job...</div>
-                <div class="status-sub" data-status-sub data-i18n="status.upTo90">
-                    This can take up to 90 seconds
+        <section class="view" data-view="wallet" hidden>
+            <section class="hero-panel">
+                <div class="hero-copy">
+                    <p class="eyebrow" data-i18n="wallet.eyebrow">Кабинет</p>
+                    <h1 data-i18n="wallet.title">Мой Dream Wheels AI</h1>
+                    <p class="lede" data-i18n="wallet.lede">
+                        Здесь видны баланс, последний счет и быстрый платежный flow в три шага.
+                    </p>
                 </div>
-                <div class="status-debug" data-status-debug hidden></div>
-            </div>
-            <div class="result-block" data-result hidden>
-                <img data-result-img hidden alt="AI render" data-i18n-alt="result.imageAlt" style="width:100%;border-radius:12px;margin-bottom:12px;" />
-                <div class="result-actions">
-                    <button type="button" class="result-action-button" data-download-result data-i18n="actions.download" hidden>
-                        Download
+                <section class="balance-tile">
+                    <div class="balance-badge">💎</div>
+                    <div class="balance-value"><span data-balance-value>3</span></div>
+                    <div class="balance-unit">credits</div>
+                    <div class="balance-note" data-balance-note data-i18n="wallet.starterGrant">Стартовый грант</div>
+                </section>
+            </section>
+
+            <section class="panel last-invoice-panel">
+                <div class="panel-head">
+                    <div>
+                        <p class="section-label" data-i18n="wallet.lastInvoiceLabel">Последний счет</p>
+                        <h2 data-i18n="wallet.lastInvoiceTitle">Статус виден сразу после оплаты</h2>
+                    </div>
+                    <span class="status-pill" data-last-invoice-pill>Стартовый грант</span>
+                </div>
+                <div class="invoice-empty" data-last-invoice-empty>
+                    <div class="invoice-amount">3 credits</div>
+                    <p data-i18n="wallet.lastInvoiceEmpty">
+                        Оплат еще не было. После первой покупки здесь появится последний счет.
+                    </p>
+                </div>
+                <div class="invoice-card" data-last-invoice-card hidden>
+                    <div class="invoice-row">
+                        <div>
+                            <div class="invoice-number" data-last-invoice-number>#000000</div>
+                            <div class="invoice-meta" data-last-invoice-meta>Сегодня</div>
+                        </div>
+                        <span class="status-pill" data-last-invoice-status>Pending</span>
+                    </div>
+                    <div class="invoice-grid">
+                        <div class="invoice-field">
+                            <span data-i18n="wallet.invoiceAmount">Сумма</span>
+                            <strong data-last-invoice-amount>0 ₽</strong>
+                        </div>
+                        <div class="invoice-field">
+                            <span data-i18n="wallet.invoiceEmail">Email</span>
+                            <strong data-last-invoice-email>—</strong>
+                        </div>
+                        <div class="invoice-field">
+                            <span data-i18n="wallet.invoiceCredits">Начисление</span>
+                            <strong data-last-invoice-credits>0 credits</strong>
+                        </div>
+                        <div class="invoice-field">
+                            <span data-i18n="wallet.invoiceState">Состояние</span>
+                            <strong data-last-invoice-state>Черновик</strong>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="panel wizard-panel">
+                <div class="panel-head">
+                    <div>
+                        <p class="section-label" data-i18n="wallet.wizardLabel">Пополнение</p>
+                        <h2 data-i18n="wallet.wizardTitle">Три шага оплаты</h2>
+                    </div>
+                    <button type="button" class="ghost-button" data-reset-wizard data-i18n="wallet.reset">Сбросить</button>
+                </div>
+
+                <div class="steps">
+                    <button type="button" class="step active" data-step-tab="1">
+                        <span class="step-index">1</span>
+                        <span class="step-copy" data-i18n="wallet.stepAmount">Сумма</span>
                     </button>
-                    <button type="button" class="result-action-button" data-share-result data-i18n="actions.share" hidden>
-                        Share
+                    <button type="button" class="step" data-step-tab="2">
+                        <span class="step-index">2</span>
+                        <span class="step-copy" data-i18n="wallet.stepEmail">Email</span>
+                    </button>
+                    <button type="button" class="step" data-step-tab="3">
+                        <span class="step-index">3</span>
+                        <span class="step-copy" data-i18n="wallet.stepConfirm">Подтверждение</span>
                     </button>
                 </div>
-                <div class="result-icon">✅</div>
-                <p class="result-title" data-i18n="result.title">Done!</p>
-                <p class="result-caption" data-i18n="result.caption">Your render with new wheels is ready.</p>
-            </div>
-            <div class="error-block" data-error hidden>
-                <div class="error-icon">⚠️</div>
-                <div class="error-text" data-error-text data-i18n="errors.generic">Something went wrong</div>
-            </div>
+
+                <div class="wizard-pane" data-step="1">
+                    <div class="field-label" data-i18n="wallet.chooseAmount">Выбор суммы</div>
+                    <div class="amount-grid">
+                        <button type="button" class="amount-chip active" data-amount="500">500 ₽</button>
+                        <button type="button" class="amount-chip" data-amount="900">900 ₽</button>
+                        <button type="button" class="amount-chip" data-amount="1500">1 500 ₽</button>
+                        <button type="button" class="amount-chip" data-amount="3000">3 000 ₽</button>
+                    </div>
+                    <div class="step-actions">
+                        <button type="button" class="primary-button" data-next-step data-target-step="2" data-i18n="wallet.nextToEmail">
+                            Продолжить
+                        </button>
+                    </div>
+                </div>
+
+                <div class="wizard-pane" data-step="2" hidden>
+                    <div class="field-label" data-i18n="wallet.emailLabel">Email для чека</div>
+                    <label class="input-shell">
+                        <input type="email" inputmode="email" autocomplete="email" placeholder="name@example.com" data-email-input>
+                    </label>
+                    <div class="hint-line" data-i18n="wallet.emailHint">
+                        Нужен только для отправки платежной информации.
+                    </div>
+                    <div class="step-actions split">
+                        <button type="button" class="ghost-button" data-prev-step data-target-step="1" data-i18n="wallet.back">Назад</button>
+                        <button type="button" class="primary-button" data-next-step data-target-step="3" data-i18n="wallet.nextToConfirm">Продолжить</button>
+                    </div>
+                </div>
+
+                <div class="wizard-pane" data-step="3" hidden>
+                    <div class="confirm-box">
+                        <div class="confirm-row">
+                            <span data-i18n="wallet.confirmAmount">Сумма</span>
+                            <strong data-confirm-amount>900 ₽</strong>
+                        </div>
+                        <div class="confirm-row">
+                            <span data-i18n="wallet.confirmEmail">Email</span>
+                            <strong data-confirm-email>name@example.com</strong>
+                        </div>
+                        <div class="confirm-row">
+                            <span data-i18n="wallet.confirmCredits">Начисление</span>
+                            <strong data-confirm-credits>9 credits</strong>
+                        </div>
+                    </div>
+                    <div class="hint-line" data-i18n="wallet.confirmHint">
+                        После нажатия кнопки здесь сразу появится последний счет.
+                    </div>
+                    <div class="step-actions split">
+                        <button type="button" class="ghost-button" data-prev-step data-target-step="2" data-i18n="wallet.back">Назад</button>
+                        <button type="button" class="primary-button" data-pay-button data-i18n="wallet.pay">Оплатить</button>
+                    </div>
+                </div>
+                <div class="panel-note neutral" data-wallet-feedback hidden></div>
+            </section>
+
+            <details class="collapsible panel">
+                <summary>
+                    <span>
+                        <strong data-i18n="wallet.paymentHistory">История платежей</strong>
+                        <span class="summary-hint" data-i18n="wallet.paymentHistoryHint">
+                            Скрыта по умолчанию
+                        </span>
+                    </span>
+                    <span class="summary-action" data-i18n="wallet.openHistory">Открыть</span>
+                </summary>
+                <div class="history-list" data-payment-history></div>
+            </details>
         </section>
 
-        <footer class="footer">
-            <span data-user-info data-i18n="footer.notTelegram">Not in Telegram</span>
-            <span class="dot">·</span>
-            <span>2026</span>
-        </footer>
+        <section class="view" data-view="renders" hidden>
+            <section class="hero-panel compact">
+                <div class="hero-copy">
+                    <p class="eyebrow" data-i18n="renders.eyebrow">Готовые работы</p>
+                    <h1 data-i18n="renders.title">История рендеров</h1>
+                    <p class="lede" data-i18n="renders.lede">
+                        Быстрый список последних генераций и их состояния.
+                    </p>
+                </div>
+            </section>
+            <section class="panel">
+                <div class="list" data-render-history></div>
+            </section>
+        </section>
+
+        <section class="view" data-view="settings" hidden>
+            <section class="hero-panel compact">
+                <div class="hero-copy">
+                    <p class="eyebrow" data-i18n="settings.eyebrow">Параметры кабинета</p>
+                    <h1 data-i18n="settings.title">Настройки</h1>
+                    <p class="lede" data-i18n="settings.lede">
+                        Формальный экран для будущих параметров профиля и уведомлений.
+                    </p>
+                </div>
+            </section>
+            <section class="panel">
+                <div class="form-stack">
+                    <div class="form-row">
+                        <div>
+                            <strong data-i18n="settings.profileTitle">Профиль Telegram</strong>
+                            <p data-i18n="settings.profileText">Связан автоматически с Mini App.</p>
+                        </div>
+                        <span class="status-pill neutral" data-i18n="settings.linked">Подключено</span>
+                    </div>
+                    <div class="form-row">
+                        <div>
+                            <strong data-i18n="settings.notificationsTitle">Уведомления</strong>
+                            <p data-i18n="settings.notificationsText">Будут добавлены позже.</p>
+                        </div>
+                        <span class="status-pill muted" data-i18n="settings.soon">Скоро</span>
+                    </div>
+                    <div class="form-row">
+                        <div>
+                            <strong data-i18n="settings.languageTitle">Язык интерфейса</strong>
+                            <p data-i18n="settings.languageText">Определяется по Telegram.</p>
+                        </div>
+                        <span class="status-pill neutral" data-locale-label>RU</span>
+                    </div>
+                </div>
+            </section>
+        </section>
+
+        <section class="view" data-view="support" hidden>
+            <section class="hero-panel compact">
+                <div class="hero-copy">
+                    <p class="eyebrow" data-i18n="support.eyebrow">Связь</p>
+                    <h1 data-i18n="support.title">Поддержка</h1>
+                    <p class="lede" data-i18n="support.lede">
+                        Короткий и формальный экран контактов без лишнего текста.
+                    </p>
+                </div>
+            </section>
+            <section class="panel">
+                <div class="support-grid">
+                    <a href="#" class="support-link"><span>💬</span><span data-i18n="support.telegram">Telegram</span></a>
+                    <a href="#" class="support-link"><span>✉️</span><span data-i18n="support.email">Email</span></a>
+                    <a href="#" class="support-link"><span>📄</span><span data-i18n="support.offer">Оферта</span></a>
+                    <a href="#" class="support-link"><span>↩︎</span><span data-i18n="support.refund">Возврат</span></a>
+                    <a href="#" class="support-link"><span>🔒</span><span data-i18n="support.pdn">ПДн</span></a>
+                    <a href="#" class="support-link"><span>🧾</span><span data-i18n="support.requisites">Реквизиты</span></a>
+                </div>
+            </section>
+        </section>
+
+        <section class="view" data-view="docs" hidden>
+            <section class="hero-panel compact">
+                <div class="hero-copy">
+                    <p class="eyebrow" data-i18n="docs.eyebrow">Документы</p>
+                    <h1 data-i18n="docs.title">Документы</h1>
+                    <p class="lede" data-i18n="docs.lede">
+                        Формальный список ссылок на юридические и справочные материалы.
+                    </p>
+                </div>
+            </section>
+            <section class="panel">
+                <div class="docs-list">
+                    <a href="#" class="doc-link"><span data-i18n="docs.offer">Оферта</span><span aria-hidden="true">↗</span></a>
+                    <a href="#" class="doc-link"><span data-i18n="docs.privacy">Политика конфиденциальности</span><span aria-hidden="true">↗</span></a>
+                    <a href="#" class="doc-link"><span data-i18n="docs.payments">Условия оплаты</span><span aria-hidden="true">↗</span></a>
+                </div>
+            </section>
+        </section>
     </main>
 
-    <script src="app.js?v=20260617-5" type="module"></script>
+    <script src="app.js?v=20260618-2" type="module"></script>
 </body>
 </html>

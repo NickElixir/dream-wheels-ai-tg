@@ -12,7 +12,7 @@
 4. Вынести Robokassa в `PaymentProvider` adapter.
 5. Добавить contract tests для Robokassa signature, receipt payload и webhook idempotency.
 6. Заменить или сверить Telegram auth validator с библиотекой/официальными test cases.
-7. Добавить второй provider, например Telegram Stars или YooKassa, чтобы проверить универсальность payment layer.
+7. Добавить второй provider, например Telegram Stars или Wallet Pay, чтобы проверить универсальность payment layer.
 
 ## Целевая схема модулей
 
@@ -26,8 +26,8 @@ src/payments/
   providers/
     base.py
     robokassa.py
-    yookassa.py
     telegram_stars.py
+    wallet_pay.py
     ton_pay.py
 
 src/credits/

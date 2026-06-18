@@ -18,6 +18,8 @@ from src.config import (
     ROBOKASSA_MERCHANT_LOGIN,
     ROBOKASSA_PASSWORD1,
     ROBOKASSA_PASSWORD2,
+    ROBOKASSA_TEST_PASSWORD1,
+    ROBOKASSA_TEST_PASSWORD2,
 )
 from src.credits_service import ensure_credit_account
 
@@ -99,12 +101,23 @@ def _receipt_payload(intent: TopUpIntent) -> dict[str, Any]:
 
 
 def _require_payment_config() -> None:
-    if not ROBOKASSA_MERCHANT_LOGIN or not ROBOKASSA_PASSWORD1 or not ROBOKASSA_PASSWORD2:
+    password1, password2 = _active_passwords()
+    if not ROBOKASSA_MERCHANT_LOGIN or not password1 or not password2:
         raise PaymentConfigError("Robokassa credentials are not configured")
+
+
+def _active_passwords() -> tuple[str, str]:
+    if ROBOKASSA_IS_TEST:
+        return (
+            ROBOKASSA_TEST_PASSWORD1 or ROBOKASSA_PASSWORD1,
+            ROBOKASSA_TEST_PASSWORD2 or ROBOKASSA_PASSWORD2,
+        )
+    return ROBOKASSA_PASSWORD1, ROBOKASSA_PASSWORD2
 
 
 def build_payment_url(*, invoice_id: int, payment_id: str, intent: TopUpIntent) -> str:
     _require_payment_config()
+    password1, _ = _active_passwords()
     receipt_json = json.dumps(_receipt_payload(intent), ensure_ascii=False, separators=(",", ":"))
     encoded_receipt = quote(receipt_json, safe="")
     signature_parts = [
@@ -112,7 +125,7 @@ def build_payment_url(*, invoice_id: int, payment_id: str, intent: TopUpIntent) 
         f"{intent.amount_rub:.2f}",
         str(invoice_id),
         receipt_json,
-        ROBOKASSA_PASSWORD1,
+        password1,
         f"Shp_payment_id={payment_id}",
     ]
     if ROBOKASSA_IS_TEST:
@@ -250,10 +263,11 @@ def verify_result_signature(
     payment_id: str,
     is_test: bool,
 ) -> bool:
+    _, password2 = _active_passwords()
     expected_parts = [
         out_sum,
         str(invoice_id),
-        ROBOKASSA_PASSWORD2,
+        password2,
         f"Shp_payment_id={payment_id}",
     ]
     if is_test:

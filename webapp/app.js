@@ -19,6 +19,9 @@ const DEV_TELEGRAM_USER_ID_STORAGE_KEY = "dreamWheelsDevTelegramUserId";
 const RECENT_RENDERS_STORAGE_KEY = "dreamWheelsRecentRenders";
 const PRICING_VERSION = "credits-v1";
 const PAYMENT_AMOUNTS = [500, 900, 1500, 3000];
+const PAYMENT_PENDING_FRESH_MS = 60 * 1000;
+const PAYMENT_PENDING_STALE_MS = 15 * 60 * 1000;
+const PAYMENT_PENDING_AUTO_REFRESH_DELAY_MS = 10 * 1000;
 const POLL_INTERVAL_MS = 3000;
 const POLL_TIMEOUT_MS = 110000;
 const DRAFT_DB_NAME = "dream-wheels-upload-draft";
@@ -131,9 +134,13 @@ const I18N = {
             openHistory: "Открыть",
             emptyHistory: "Платежей пока нет",
             loading: "Загружаем кабинет...",
+            refreshInvoice: "Обновить счет",
+            refreshingInvoice: "Обновляем статус счета...",
             openingPayment: "Открываем Robokassa...",
             paymentSuccess: "Оплата подтверждена. Обновляем баланс.",
             paymentFail: "Платеж не завершен.",
+            pendingFresh: "Счет создан. Если вы вернулись из Robokassa, обновите его через несколько секунд.",
+            pendingStale: "Счет все еще ждет подтверждения. Если оплата не прошла, он останется в ожидании, пока мы не получим финальный статус. Обновите счет позже.",
             authRequired: "Откройте Mini App в Telegram или добавьте ?tgUser=123456 для staging fallback.",
             fallbackDisabled: "Web fallback выключен на backend.",
         },
@@ -291,9 +298,13 @@ const I18N = {
             openHistory: "Open",
             emptyHistory: "No payments yet",
             loading: "Loading cabinet...",
+            refreshInvoice: "Refresh invoice",
+            refreshingInvoice: "Refreshing invoice status...",
             openingPayment: "Opening Robokassa...",
             paymentSuccess: "Payment confirmed. Refreshing balance.",
             paymentFail: "Payment was not completed.",
+            pendingFresh: "Invoice created. If you returned from Robokassa, refresh it in a few seconds.",
+            pendingStale: "The invoice is still waiting for confirmation. If the payment did not go through, it may stay pending until a final status arrives. Refresh it later.",
             authRequired: "Open the Mini App in Telegram or add ?tgUser=123456 for staging fallback.",
             fallbackDisabled: "Web fallback is disabled on the backend.",
         },
@@ -415,6 +426,8 @@ const state = {
     payments: [],
     walletBusy: false,
     walletMessage: "",
+    paymentReturnState: "",
+    pendingRefreshTimer: null,
     createScreen: "upload",
     files: { car: null, wheel: null },
     previewUrls: { car: "", wheel: "" },
@@ -572,6 +585,9 @@ function setView(view) {
     updateTopbarCaption();
     setMenuOpen(false);
     refreshButtonsForCurrentView();
+    if (view === "wallet") {
+        void loadCabinet({ silent: true });
+    }
 }
 
 function setPaymentStep(step) {
@@ -597,6 +613,7 @@ function setWalletBusy(busy) {
     state.walletBusy = busy;
     document.querySelector("[data-pay-button]")?.toggleAttribute("disabled", busy);
     document.querySelector("[data-reset-wizard]")?.toggleAttribute("disabled", busy);
+    document.querySelector("[data-refresh-invoice]")?.toggleAttribute("disabled", busy);
 }
 
 function setWalletMessage(message, tone = "neutral") {
@@ -615,11 +632,47 @@ function getLastInvoice() {
 function formatPaymentStatus(status) {
     if (status === "paid") return t("paid");
     if (status === "pending") return t("pending");
+    if (status === "failed" || status === "cancelled" || status === "expired") return t("failed");
     return t("created");
 }
 
 function statusTone(status) {
-    return status === "paid" ? "success" : "neutral";
+    if (status === "paid") return "success";
+    return "neutral";
+}
+
+function clearPendingRefreshTimer() {
+    if (!state.pendingRefreshTimer) return;
+    clearTimeout(state.pendingRefreshTimer);
+    state.pendingRefreshTimer = null;
+}
+
+function getInvoiceAgeMs(invoice) {
+    if (!invoice?.createdAtMs || !Number.isFinite(invoice.createdAtMs)) return null;
+    return Math.max(0, Date.now() - invoice.createdAtMs);
+}
+
+function getPendingWalletMessage(invoice) {
+    if (!invoice || invoice.status !== "pending") return "";
+    const ageMs = getInvoiceAgeMs(invoice);
+    if (ageMs !== null && ageMs >= PAYMENT_PENDING_STALE_MS) {
+        return t("wallet.pendingStale");
+    }
+    return t("wallet.pendingFresh");
+}
+
+function schedulePendingInvoiceRefresh() {
+    clearPendingRefreshTimer();
+    const invoice = getLastInvoice();
+    const ageMs = getInvoiceAgeMs(invoice);
+    if (!invoice || invoice.status !== "pending") return;
+    if (ageMs !== null && ageMs > PAYMENT_PENDING_FRESH_MS) return;
+    state.pendingRefreshTimer = window.setTimeout(() => {
+        state.pendingRefreshTimer = null;
+        if (state.view === "wallet" && !document.hidden) {
+            void loadCabinet({ silent: true });
+        }
+    }, PAYMENT_PENDING_AUTO_REFRESH_DELAY_MS);
 }
 
 function renderWallet() {
@@ -685,6 +738,13 @@ function renderConfirmation() {
     document.querySelector("[data-confirm-credits]")?.replaceChildren(document.createTextNode(`${creditsForAmount(state.selectedAmount)} ${t("credits")}`));
 }
 
+function syncEmailInput() {
+    const emailInput = document.querySelector("[data-email-input]");
+    if (emailInput && emailInput.value !== state.email) {
+        emailInput.value = state.email;
+    }
+}
+
 function renderRenders() {
     const container = document.querySelector("[data-render-history]");
     if (!container) return;
@@ -716,7 +776,7 @@ function renderRenders() {
         .join("");
 }
 
-async function loadCabinet() {
+async function loadCabinet({ silent = false } = {}) {
     const identity = getIdentitySearchParams();
     if (!identity.toString()) {
         setWalletMessage(t("wallet.authRequired"), "warning");
@@ -724,8 +784,11 @@ async function loadCabinet() {
         return;
     }
 
+    clearPendingRefreshTimer();
     setWalletBusy(true);
-    setWalletMessage(t("wallet.loading"));
+    if (!silent) {
+        setWalletMessage(t("wallet.loading"));
+    }
     try {
         const response = await fetch(`${state.apiBaseUrl}/payments/cabinet?${identity.toString()}`);
         if (!response.ok) {
@@ -745,11 +808,30 @@ async function loadCabinet() {
             amount: payment.amount,
             email: payment.email || "",
             credits: payment.credits_granted || 0,
+            createdAtIso: payment.created_at,
+            createdAtMs: Date.parse(payment.created_at),
             createdAt: new Date(payment.created_at).toLocaleString(locale === "ru" ? "ru-RU" : "en-US"),
             status: payment.status,
         }));
-        setWalletMessage("");
+        const rememberedEmail = state.payments.find((payment) => payment.email)?.email || "";
+        if (rememberedEmail && !state.email) {
+            state.email = rememberedEmail;
+            syncEmailInput();
+            renderConfirmation();
+        }
+        const pendingMessage = getPendingWalletMessage(getLastInvoice());
+        if (state.paymentReturnState === "success") {
+            setWalletMessage(t("wallet.paymentSuccess"), "success");
+        } else if (state.paymentReturnState === "fail") {
+            setWalletMessage(t("wallet.paymentFail"), "warning");
+        } else if (pendingMessage) {
+            setWalletMessage(pendingMessage, "warning");
+        } else {
+            setWalletMessage("");
+        }
+        state.paymentReturnState = "";
         renderWallet();
+        schedulePendingInvoiceRefresh();
     } catch (error) {
         setWalletMessage(error?.message || t("failed"), "error");
         renderWallet();
@@ -816,6 +898,7 @@ async function createPayment() {
 
 function handlePaymentReturn() {
     const paymentState = new URLSearchParams(window.location.search).get("payment");
+    state.paymentReturnState = paymentState || "";
     if (paymentState === "success") {
         setWalletMessage(t("wallet.paymentSuccess"), "success");
         setView("wallet");
@@ -1414,6 +1497,10 @@ function bindEvents() {
     });
 
     document.querySelector("[data-pay-button]")?.addEventListener("click", createPayment);
+    document.querySelector("[data-refresh-invoice]")?.addEventListener("click", () => {
+        setWalletMessage(t("wallet.refreshingInvoice"));
+        void loadCabinet();
+    });
     document.querySelector("[data-reset-wizard]")?.addEventListener("click", () => {
         state.paymentStep = 1;
         state.selectedAmount = 900;
@@ -1474,7 +1561,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     handlePaymentReturn();
 
     const emailInput = document.querySelector("[data-email-input]");
-    if (emailInput) emailInput.value = state.email;
+    syncEmailInput();
 
     setSelectedAmount(state.selectedAmount);
     setPaymentStep(1);
@@ -1483,6 +1570,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     updateTopbarCaption();
     setMenuOpen(false);
     showCreateScreen("upload");
+
+    document.addEventListener("visibilitychange", () => {
+        if (!document.hidden && state.view === "wallet") {
+            void loadCabinet({ silent: true });
+        }
+    });
 
     await hydrateFilesFromDraft();
     refreshButtonsForCurrentView();

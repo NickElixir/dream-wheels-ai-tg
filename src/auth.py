@@ -150,9 +150,6 @@ def parse_init_data(init_data: str, *, bot_token: str | None = None) -> dict:
     pairs = dict(parse_qsl(init_data, keep_blank_values=True))
 
     received_hash = pairs.pop("hash", None)
-    # Telegram Mini Apps can also include `signature` for third-party
-    # validation. It must not participate in the legacy HMAC data-check-string.
-    pairs.pop("signature", None)
     if not received_hash:
         raise InitDataInvalid("В initData нет поля hash")
 

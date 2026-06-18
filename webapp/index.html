@@ -137,27 +137,32 @@
                         <p class="section-label" data-i18n="wallet.lastInvoiceLabel">Последний счет</p>
                         <h2 data-i18n="wallet.lastInvoiceTitle">Статус виден сразу после оплаты</h2>
                     </div>
-                    <span class="status-pill" data-last-invoice-pill>Стартовый грант</span>
+                    <span class="status-pill neutral" data-payment-status>Стартовый грант</span>
                 </div>
-                <div class="invoice-empty" data-last-invoice-empty>
-                    <div class="invoice-amount">3 credits</div>
-                    <p data-i18n="wallet.lastInvoiceEmpty">
-                        Оплат еще не было. После первой покупки здесь появится последний счет.
-                    </p>
+                <p class="panel-note warning-note" data-last-payment-error hidden></p>
+                <div class="payment-card payment-card-grant" data-last-invoice-empty>
+                    <div>
+                        <div class="payment-card-title" data-i18n="wallet.registrationGrantTitle">Стартовый грант</div>
+                        <div class="payment-card-meta" data-i18n="wallet.registrationGrantMeta">После первого запуска на баланс начисляются 3 credits.</div>
+                    </div>
+                    <div class="payment-card-badge" data-registration-grant-badge data-i18n="wallet.registrationGrantBadge">3 credits</div>
                 </div>
-                <div class="invoice-card" data-last-invoice-card hidden>
+                <div class="payment-card" data-last-invoice-card hidden>
+                    <div>
+                        <div class="payment-card-title" data-last-invoice-number>#000000</div>
+                        <div class="payment-card-meta" data-last-invoice-meta>Сегодня</div>
+                    </div>
+                    <button type="button" class="payment-card-action" data-refresh-invoice hidden data-i18n="wallet.refreshInvoice">Обновить счет</button>
+                </div>
+                <div class="invoice-card" data-last-invoice-details hidden>
                     <div class="invoice-row">
                         <div>
-                            <div class="invoice-number" data-last-invoice-number>#000000</div>
-                            <div class="invoice-meta" data-last-invoice-meta>Сегодня</div>
+                            <div class="invoice-number" data-last-invoice-amount>0 ₽</div>
+                            <div class="invoice-meta" data-last-invoice-state>Черновик</div>
                         </div>
                         <span class="status-pill" data-last-invoice-status>Pending</span>
                     </div>
                     <div class="invoice-grid">
-                        <div class="invoice-field">
-                            <span data-i18n="wallet.invoiceAmount">Сумма</span>
-                            <strong data-last-invoice-amount>0 ₽</strong>
-                        </div>
                         <div class="invoice-field">
                             <span data-i18n="wallet.invoiceEmail">Email</span>
                             <strong data-last-invoice-email>—</strong>
@@ -167,12 +172,13 @@
                             <strong data-last-invoice-credits>0 credits</strong>
                         </div>
                         <div class="invoice-field">
-                            <span data-i18n="wallet.invoiceState">Состояние</span>
-                            <strong data-last-invoice-state>Черновик</strong>
+                            <span data-i18n="wallet.invoiceAmount">Сумма</span>
+                            <strong data-last-invoice-amount-copy>0 ₽</strong>
                         </div>
-                    </div>
-                    <div class="step-actions">
-                        <button type="button" class="ghost-button" data-refresh-invoice data-i18n="wallet.refreshInvoice">Обновить счет</button>
+                        <div class="invoice-field">
+                            <span data-i18n="wallet.invoiceNumber">Счет</span>
+                            <strong data-last-invoice-number-copy>#000000</strong>
+                        </div>
                     </div>
                 </div>
             </section>
@@ -185,75 +191,92 @@
                     </div>
                     <button type="button" class="ghost-button" data-reset-wizard data-i18n="wallet.reset">Сбросить</button>
                 </div>
-
-                <div class="steps">
-                    <button type="button" class="step active" data-step-tab="1">
-                        <span class="step-index">1</span>
-                        <span class="step-copy" data-i18n="wallet.stepAmount">Сумма</span>
-                    </button>
-                    <button type="button" class="step" data-step-tab="2">
-                        <span class="step-index">2</span>
-                        <span class="step-copy" data-i18n="wallet.stepEmail">Email</span>
-                    </button>
-                    <button type="button" class="step" data-step-tab="3">
-                        <span class="step-index">3</span>
-                        <span class="step-copy" data-i18n="wallet.stepConfirm">Подтверждение</span>
-                    </button>
-                </div>
-
-                <div class="wizard-pane" data-step="1">
-                    <div class="field-label" data-i18n="wallet.chooseAmount">Выбор суммы</div>
-                    <div class="amount-grid">
-                        <button type="button" class="amount-chip active" data-amount="500">500 ₽</button>
-                        <button type="button" class="amount-chip" data-amount="900">900 ₽</button>
-                        <button type="button" class="amount-chip" data-amount="1500">1 500 ₽</button>
-                        <button type="button" class="amount-chip" data-amount="3000">3 000 ₽</button>
-                    </div>
-                    <div class="step-actions">
-                        <button type="button" class="primary-button" data-next-step data-target-step="2" data-i18n="wallet.nextToEmail">
-                            Продолжить
-                        </button>
-                    </div>
-                </div>
-
-                <div class="wizard-pane" data-step="2" hidden>
-                    <div class="field-label" data-i18n="wallet.emailLabel">Email для чека</div>
-                    <label class="input-shell">
-                        <input type="email" inputmode="email" autocomplete="email" placeholder="name@example.com" data-email-input>
-                    </label>
-                    <div class="hint-line" data-i18n="wallet.emailHint">
-                        Нужен только для отправки платежной информации.
-                    </div>
-                    <div class="step-actions split">
-                        <button type="button" class="ghost-button" data-prev-step data-target-step="1" data-i18n="wallet.back">Назад</button>
-                        <button type="button" class="primary-button" data-next-step data-target-step="3" data-i18n="wallet.nextToConfirm">Продолжить</button>
-                    </div>
-                </div>
-
-                <div class="wizard-pane" data-step="3" hidden>
-                    <div class="confirm-box">
-                        <div class="confirm-row">
-                            <span data-i18n="wallet.confirmAmount">Сумма</span>
-                            <strong data-confirm-amount>900 ₽</strong>
+                <div class="topup-general-error" data-wallet-feedback hidden></div>
+                <div class="topup-wizard">
+                    <div class="topup-island topup-step-island">
+                        <div class="topup-step-head">
+                            <span class="topup-step-index">1</span>
+                            <div>
+                                <div class="topup-step-title" data-i18n="wallet.stepChooseTitle">Выберите пакет</div>
+                                <div class="topup-step-sub" data-i18n="wallet.stepChooseSub">Пакетный режим активен по умолчанию.</div>
+                            </div>
                         </div>
-                        <div class="confirm-row">
-                            <span data-i18n="wallet.confirmEmail">Email</span>
-                            <strong data-confirm-email>name@example.com</strong>
+                        <div class="topup-mode-switch" hidden>
+                            <button type="button" class="topup-mode-button" data-topup-mode-button="package" data-selected="true" aria-selected="true" data-i18n="wallet.modePackage">Пакет</button>
+                            <button type="button" class="topup-mode-button" data-topup-mode-button="custom" data-selected="false" aria-selected="false" disabled data-i18n="wallet.modeCustom">Своя сумма</button>
                         </div>
-                        <div class="confirm-row">
-                            <span data-i18n="wallet.confirmCredits">Начисление</span>
-                            <strong data-confirm-credits>9 credits</strong>
+                        <div class="topup-island topup-packages-island" data-topup-panel="package" data-active="true" aria-hidden="false">
+                            <div class="topup-grid">
+                                <button type="button" class="topup-card" data-topup-amount="100" data-topup-credits="3" data-selected="false">
+                                    <span class="topup-icon" aria-hidden="true">⚡</span>
+                                    <span class="package-main">
+                                        <span class="package-name">100 ₽</span>
+                                        <span class="package-meta" data-topup-meta>3 credits · 30 дней</span>
+                                    </span>
+                                </button>
+                                <button type="button" class="topup-card" data-topup-amount="200" data-topup-credits="7" data-selected="false">
+                                    <span class="topup-icon" aria-hidden="true">🏁</span>
+                                    <span class="package-main">
+                                        <span class="package-name">200 ₽</span>
+                                        <span class="package-meta" data-topup-meta>7 credits · 30 дней</span>
+                                    </span>
+                                </button>
+                                <button type="button" class="topup-card" data-topup-amount="500" data-topup-credits="20" data-selected="false">
+                                    <span class="topup-icon" aria-hidden="true">💎</span>
+                                    <span class="package-main">
+                                        <span class="package-name">500 ₽</span>
+                                        <span class="package-meta" data-topup-meta>20 credits · 30 дней</span>
+                                    </span>
+                                </button>
+                                <button type="button" class="topup-card" data-topup-amount="1000" data-topup-credits="45" data-selected="false">
+                                    <span class="topup-icon" aria-hidden="true">👑</span>
+                                    <span class="package-main">
+                                        <span class="package-name">1 000 ₽</span>
+                                        <span class="package-meta" data-topup-meta>45 credits · 30 дней</span>
+                                    </span>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="custom-topup" data-topup-panel="custom" data-active="false" aria-hidden="true" hidden>
+                            <div class="topup-island">
+                                <label class="custom-topup-label" for="custom-topup-amount" data-i18n="wallet.customAmountLabel">Своя сумма</label>
+                                <div class="custom-topup-row">
+                                    <input id="custom-topup-amount" type="number" inputmode="numeric" min="100" max="3000" step="50" value="200" data-custom-topup disabled>
+                                </div>
+                                <p class="custom-topup-preview" data-custom-topup-preview>7 credits за 200 ₽ · 30 дней</p>
+                            </div>
                         </div>
                     </div>
-                    <div class="hint-line" data-i18n="wallet.confirmHint">
-                        После нажатия кнопки здесь сразу появится последний счет.
+
+                    <div class="topup-island topup-step-island">
+                        <div class="topup-step-head">
+                            <span class="topup-step-index">2</span>
+                            <div>
+                                <div class="topup-step-title" data-i18n="wallet.emailLabel">Email для чека</div>
+                                <div class="topup-step-sub" data-i18n="wallet.emailHint">Используем его для чека и подтверждения оплаты.</div>
+                            </div>
+                        </div>
+                        <label class="custom-topup-label" for="wallet-email" data-i18n="wallet.emailLabel">Email для чека</label>
+                        <input id="wallet-email" class="topup-email" type="email" inputmode="email" autocomplete="email" placeholder="name@example.com" data-topup-email>
+                        <p class="topup-email-error" data-topup-email-error hidden></p>
                     </div>
-                    <div class="step-actions split">
-                        <button type="button" class="ghost-button" data-prev-step data-target-step="2" data-i18n="wallet.back">Назад</button>
-                        <button type="button" class="primary-button" data-pay-button data-i18n="wallet.pay">Оплатить</button>
+
+                    <div class="topup-island topup-step-island topup-action-island">
+                        <div class="topup-step-head">
+                            <span class="topup-step-index">3</span>
+                            <div>
+                                <div class="topup-step-title" data-i18n="wallet.stepConfirm">Подтверждение</div>
+                                <div class="topup-step-sub" data-i18n="wallet.confirmHint">Проверьте пакет перед переходом в Robokassa.</div>
+                            </div>
+                        </div>
+                        <div class="topup-summary">
+                            <div class="topup-summary-title" data-topup-summary-title data-i18n="wallet.summaryEmptyTitle">Выберите пакет</div>
+                            <div class="topup-summary-meta" data-topup-summary-meta data-i18n="wallet.summaryEmptyMeta">Здесь появится выбранный пакет перед оплатой.</div>
+                        </div>
+                        <button type="button" class="primary-button wallet-pay-button" data-pay-button data-i18n="wallet.pay">Оплатить</button>
+                        <p class="panel-note" data-i18n="wallet.paymentNote">Оплата откроется через Robokassa. Credits начисляются после подтверждения.</p>
                     </div>
                 </div>
-                <div class="panel-note neutral" data-wallet-feedback hidden></div>
             </section>
 
             <details class="collapsible panel">
@@ -266,7 +289,7 @@
                     </span>
                     <span class="summary-action" data-i18n="wallet.openHistory">Открыть</span>
                 </summary>
-                <div class="history-list" data-payment-history></div>
+                <div class="history-list" data-payment-history-list></div>
             </details>
         </section>
 

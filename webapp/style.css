@@ -349,6 +349,10 @@ h2 {
     display: grid;
 }
 
+.warning-note {
+    color: #ff8f8f;
+}
+
 .invoice-number {
     font-size: 30px;
     font-weight: 900;
@@ -419,6 +423,283 @@ h2 {
 .wizard-panel {
     display: grid;
     gap: 18px;
+}
+
+.wallet-pay-button {
+    width: 100%;
+}
+
+.topup-mode-switch[hidden],
+.custom-topup[hidden] {
+    display: none !important;
+}
+
+.topup-general-error {
+    color: #ff8f8f;
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1.45;
+}
+
+.topup-wizard {
+    display: grid;
+    gap: 16px;
+}
+
+.topup-island {
+    display: grid;
+    gap: 14px;
+    padding: 18px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 20px;
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.topup-step-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+}
+
+.topup-step-index {
+    width: 32px;
+    height: 32px;
+    border-radius: 999px;
+    background: rgba(221, 255, 0, 0.12);
+    border: 1px solid rgba(221, 255, 0, 0.24);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--accent);
+    font-weight: 900;
+    flex: 0 0 auto;
+}
+
+.topup-step-title {
+    font-size: 18px;
+    font-weight: 800;
+}
+
+.topup-step-sub {
+    margin-top: 4px;
+    color: var(--text-subtle);
+    line-height: 1.45;
+}
+
+.topup-packages-island {
+    padding: 0;
+    border: 0;
+    background: transparent;
+}
+
+.topup-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.topup-card {
+    appearance: none;
+    display: grid;
+    grid-template-columns: 42px minmax(0, 1fr);
+    gap: 12px;
+    align-items: center;
+    width: 100%;
+    min-height: 92px;
+    padding: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 20px;
+    background: rgba(255, 255, 255, 0.02);
+    color: var(--text);
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
+}
+
+.topup-card[data-selected="true"],
+.topup-card:hover {
+    border-color: rgba(221, 255, 0, 0.34);
+    background: rgba(221, 255, 0, 0.09);
+}
+
+.topup-card:active {
+    transform: translateY(1px);
+}
+
+.topup-card:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.topup-icon {
+    width: 42px;
+    height: 42px;
+    border-radius: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.04);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 21px;
+}
+
+.package-main {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+}
+
+.package-name {
+    font-size: 28px;
+    font-weight: 900;
+    letter-spacing: -0.03em;
+}
+
+.package-meta {
+    color: var(--text-subtle);
+    font-size: 14px;
+    line-height: 1.35;
+}
+
+.custom-topup-label {
+    color: var(--text);
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.custom-topup-row input,
+.topup-email {
+    width: 100%;
+    padding: 18px 20px;
+    border-radius: 18px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--text);
+    outline: none;
+}
+
+.custom-topup-row input:focus,
+.topup-email:focus {
+    border-color: rgba(221, 255, 0, 0.34);
+    box-shadow: 0 0 0 3px rgba(221, 255, 0, 0.08);
+}
+
+.topup-email-error {
+    margin: 0;
+    color: #ff8f8f;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.custom-topup-preview {
+    color: var(--text-subtle);
+    font-size: 13px;
+}
+
+.topup-summary {
+    padding: 18px;
+    border-radius: 18px;
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.topup-summary-title {
+    font-size: 20px;
+    font-weight: 900;
+}
+
+.topup-summary-meta {
+    margin-top: 6px;
+    color: var(--text-subtle);
+    line-height: 1.45;
+}
+
+.payment-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 18px;
+    border-radius: 20px;
+    border: 1px solid rgba(255, 159, 67, 0.26);
+    background: rgba(255, 159, 67, 0.08);
+}
+
+.payment-card[data-status="paid"] {
+    border-color: rgba(39, 216, 138, 0.28);
+    background: rgba(39, 216, 138, 0.08);
+}
+
+.payment-card[data-status="failed"],
+.payment-card[data-status="cancelled"],
+.payment-card[data-status="expired"] {
+    border-color: rgba(255, 123, 123, 0.3);
+    background: rgba(255, 123, 123, 0.08);
+}
+
+.payment-card-grant {
+    border-color: rgba(221, 255, 0, 0.25);
+    background: rgba(221, 255, 0, 0.06);
+}
+
+.payment-card-title {
+    font-size: 18px;
+    font-weight: 900;
+}
+
+.payment-card-meta {
+    margin-top: 6px;
+    color: var(--text-subtle);
+    line-height: 1.4;
+}
+
+.payment-card-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 42px;
+    padding: 0 16px;
+    border-radius: 999px;
+    border: 1px solid rgba(221, 255, 0, 0.28);
+    background: rgba(221, 255, 0, 0.12);
+    color: var(--accent);
+    font-weight: 800;
+    white-space: nowrap;
+}
+
+.payment-card-action {
+    appearance: none;
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--text);
+    padding: 14px 18px;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.payment-card-action:hover {
+    border-color: rgba(221, 255, 0, 0.25);
+    background: rgba(221, 255, 0, 0.07);
+}
+
+.history-empty {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: var(--text-subtle);
+}
+
+.history-empty-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.03);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
 }
 
 .steps {
@@ -961,6 +1242,7 @@ h2 {
 
     .invoice-grid,
     .amount-grid,
+    .topup-grid,
     .support-grid,
     .docs-list {
         grid-template-columns: 1fr;
@@ -996,10 +1278,15 @@ h2 {
     .panel-head,
     .invoice-row,
     .form-row,
+    .payment-card,
     .contact-row,
     .doc-link,
     .doc-row {
         flex-direction: column;
         align-items: flex-start;
+    }
+
+    .payment-card-badge {
+        align-self: flex-start;
     }
 }

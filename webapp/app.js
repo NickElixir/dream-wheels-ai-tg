@@ -18,7 +18,14 @@ const API_MODE_STORAGE_KEY = "dreamWheelsApiMode";
 const DEV_TELEGRAM_USER_ID_STORAGE_KEY = "dreamWheelsDevTelegramUserId";
 const RECENT_RENDERS_STORAGE_KEY = "dreamWheelsRecentRenders";
 const PRICING_VERSION = "credits-v1";
-const PAYMENT_AMOUNTS = [500, 900, 1500, 3000];
+const TOPUP_MIN_AMOUNT = 100;
+const TOPUP_MAX_AMOUNT = 3000;
+const TOPUP_PACKAGES = [
+    { amount: 100, credits: 3, icon: "⚡" },
+    { amount: 200, credits: 7, icon: "🏁" },
+    { amount: 500, credits: 20, icon: "💎" },
+    { amount: 1000, credits: 45, icon: "👑" },
+];
 const PAYMENT_PENDING_FRESH_MS = 60 * 1000;
 const PAYMENT_PENDING_STALE_MS = 15 * 60 * 1000;
 const PAYMENT_PENDING_AUTO_REFRESH_DELAY_MS = 10 * 1000;
@@ -113,6 +120,7 @@ const I18N = {
             lastInvoiceTitle: "Статус виден сразу после оплаты",
             lastInvoiceEmpty: "Оплат еще не было. После первой покупки здесь появится последний счет.",
             invoiceAmount: "Сумма",
+            invoiceNumber: "Счет",
             invoiceEmail: "Email",
             invoiceCredits: "Начисление",
             invoiceState: "Состояние",
@@ -122,17 +130,23 @@ const I18N = {
             stepAmount: "Сумма",
             stepEmail: "Email",
             stepConfirm: "Подтверждение",
+            stepChooseTitle: "Выберите пакет",
+            stepChooseSub: "Пакетный режим активен по умолчанию.",
             chooseAmount: "Выбор суммы",
             nextToEmail: "Продолжить",
+            modePackage: "Пакет",
+            modeCustom: "Своя сумма",
+            customAmountLabel: "Своя сумма",
             emailLabel: "Email для чека",
-            emailHint: "Нужен только для отправки платежной информации.",
+            emailHint: "Используем его для чека и подтверждения оплаты.",
             back: "Назад",
             nextToConfirm: "Продолжить",
             confirmAmount: "Сумма",
             confirmEmail: "Email",
             confirmCredits: "Начисление",
-            confirmHint: "После нажатия кнопки откроется Robokassa, а счет появится здесь.",
+            confirmHint: "Проверьте пакет перед переходом в Robokassa.",
             pay: "Оплатить",
+            paymentNote: "Оплата откроется через Robokassa. Credits начисляются после подтверждения.",
             paymentHistory: "История платежей",
             paymentHistoryHint: "Скрыта по умолчанию",
             openHistory: "Открыть",
@@ -147,6 +161,18 @@ const I18N = {
             pendingStale: "Счет все еще ждет подтверждения. Если оплата не прошла, он останется в ожидании, пока мы не получим финальный статус. Обновите счет позже.",
             authRequired: "Откройте Mini App в Telegram или добавьте ?tgUser=123456 для staging fallback.",
             fallbackDisabled: "Web fallback выключен на backend.",
+            registrationGrantTitle: "Стартовый грант",
+            registrationGrantMeta: "После первого запуска на баланс начисляются 3 credits.",
+            registrationGrantBadge: "3 credits",
+            summaryEmptyTitle: "Выберите пакет",
+            summaryEmptyMeta: "Здесь появится выбранный пакет перед оплатой.",
+            summaryPackageTitle: "Выбранный пакет",
+            summaryCustomTitle: "Своя сумма",
+            pendingInvoice: "Счет #{invoiceId} · {amount}",
+            paidInvoice: "Счет #{invoiceId} · {amount}",
+            failedInvoice: "Счет #{invoiceId} · {amount}",
+            packageMetaDays: "{credits} credits · 30 дней",
+            packageSummary: "{amount} · {credits} credits · 30 дней",
         },
         renders: {
             eyebrow: "Готовые работы",
@@ -281,6 +307,7 @@ const I18N = {
             lastInvoiceTitle: "Status appears immediately after payment",
             lastInvoiceEmpty: "No payments yet. The first purchase will show up here as the last invoice.",
             invoiceAmount: "Amount",
+            invoiceNumber: "Invoice",
             invoiceEmail: "Email",
             invoiceCredits: "Credits",
             invoiceState: "Status",
@@ -290,17 +317,23 @@ const I18N = {
             stepAmount: "Amount",
             stepEmail: "Email",
             stepConfirm: "Confirm",
+            stepChooseTitle: "Choose a package",
+            stepChooseSub: "Package mode stays enabled by default.",
             chooseAmount: "Amount selection",
             nextToEmail: "Continue",
+            modePackage: "Package",
+            modeCustom: "Custom",
+            customAmountLabel: "Custom amount",
             emailLabel: "Receipt email",
-            emailHint: "Used only for payment delivery details.",
+            emailHint: "Used for the receipt and payment confirmation.",
             back: "Back",
             nextToConfirm: "Continue",
             confirmAmount: "Amount",
             confirmEmail: "Email",
             confirmCredits: "Credits",
-            confirmHint: "Robokassa opens on tap and the invoice appears here immediately.",
+            confirmHint: "Review the package before opening Robokassa.",
             pay: "Pay",
+            paymentNote: "Robokassa opens on tap. Credits are applied after confirmation.",
             paymentHistory: "Payment history",
             paymentHistoryHint: "Collapsed by default",
             openHistory: "Open",
@@ -315,6 +348,18 @@ const I18N = {
             pendingStale: "The invoice is still waiting for confirmation. If the payment did not go through, it may stay pending until a final status arrives. Refresh it later.",
             authRequired: "Open the Mini App in Telegram or add ?tgUser=123456 for staging fallback.",
             fallbackDisabled: "Web fallback is disabled on the backend.",
+            registrationGrantTitle: "Starter grant",
+            registrationGrantMeta: "Your first launch credits are added to the balance automatically.",
+            registrationGrantBadge: "3 credits",
+            summaryEmptyTitle: "Choose a package",
+            summaryEmptyMeta: "The selected package will appear here before payment.",
+            summaryPackageTitle: "Selected package",
+            summaryCustomTitle: "Custom amount",
+            pendingInvoice: "Invoice #{invoiceId} · {amount}",
+            paidInvoice: "Invoice #{invoiceId} · {amount}",
+            failedInvoice: "Invoice #{invoiceId} · {amount}",
+            packageMetaDays: "{credits} credits · 30 days",
+            packageSummary: "{amount} · {credits} credits · 30 days",
         },
         renders: {
             eyebrow: "Finished work",
@@ -428,7 +473,8 @@ const state = {
     view: "create",
     menuOpen: false,
     paymentStep: 1,
-    selectedAmount: 900,
+    selectedAmount: 500,
+    topUpMode: "package",
     email: "",
     balance: null,
     payments: [],
@@ -499,13 +545,34 @@ function formatRub(value) {
     return new Intl.NumberFormat(locale === "ru" ? "ru-RU" : "en-US").format(Number(value || 0)) + " ₽";
 }
 
+function formatTemplate(template, params) {
+    return t(template).replace(/\{(\w+)\}/g, (_, key) => String(params?.[key] ?? ""));
+}
+
+function normalizeTopUpAmount(amount) {
+    const parsedAmount = Number(amount);
+    if (!Number.isFinite(parsedAmount)) return TOPUP_MIN_AMOUNT;
+    return Math.min(TOPUP_MAX_AMOUNT, Math.max(TOPUP_MIN_AMOUNT, Math.round(parsedAmount)));
+}
+
+function getTopUpPackage(amount) {
+    const normalized = normalizeTopUpAmount(amount);
+    return TOPUP_PACKAGES.find((item) => item.amount === normalized) || null;
+}
+
 function creditsForAmount(amount) {
-    const normalized = Number(amount);
+    const normalized = normalizeTopUpAmount(amount);
+    const topUpPackage = getTopUpPackage(normalized);
+    if (topUpPackage) return topUpPackage.credits;
     if (normalized >= 1000) return Math.max(1, Math.floor(normalized / (1000 / 45)));
     if (normalized >= 500) return Math.max(1, Math.floor(normalized / 25));
     if (normalized >= 200) return Math.max(1, Math.floor(normalized / (200 / 7)));
     if (normalized >= 100) return Math.max(1, Math.floor(normalized / (100 / 3)));
     return 1;
+}
+
+function topUpMeta(credits) {
+    return formatTemplate("wallet.packageMetaDays", { credits });
 }
 
 function localizeErrorMessage(message) {
@@ -610,9 +677,9 @@ function setPaymentStep(step) {
 }
 
 function setSelectedAmount(amount) {
-    state.selectedAmount = amount;
-    document.querySelectorAll("[data-amount]").forEach((btn) => {
-        btn.classList.toggle("active", Number(btn.dataset.amount) === amount);
+    state.selectedAmount = normalizeTopUpAmount(amount);
+    document.querySelectorAll("[data-topup-amount]").forEach((btn) => {
+        btn.dataset.selected = String(Number(btn.dataset.topupAmount) === state.selectedAmount);
     });
     renderConfirmation();
 }
@@ -622,6 +689,10 @@ function setWalletBusy(busy) {
     document.querySelector("[data-pay-button]")?.toggleAttribute("disabled", busy);
     document.querySelector("[data-reset-wizard]")?.toggleAttribute("disabled", busy);
     document.querySelector("[data-refresh-invoice]")?.toggleAttribute("disabled", busy);
+    document.querySelector("[data-topup-email]")?.toggleAttribute("disabled", busy);
+    document.querySelectorAll("[data-topup-amount]").forEach((button) => {
+        button.toggleAttribute("disabled", busy);
+    });
 }
 
 function setWalletMessage(message, tone = "neutral") {
@@ -630,7 +701,7 @@ function setWalletMessage(message, tone = "neutral") {
     if (!feedback) return;
     feedback.hidden = !message;
     feedback.textContent = message;
-    feedback.className = `panel-note ${tone}`;
+    feedback.className = `topup-general-error ${tone}`;
 }
 
 function getLastInvoice() {
@@ -646,6 +717,7 @@ function formatPaymentStatus(status) {
 
 function statusTone(status) {
     if (status === "paid") return "success";
+    if (status === "failed" || status === "cancelled" || status === "expired") return "warning";
     return "neutral";
 }
 
@@ -689,65 +761,109 @@ function renderWallet() {
     const lastInvoice = getLastInvoice();
     const emptyBlock = document.querySelector("[data-last-invoice-empty]");
     const cardBlock = document.querySelector("[data-last-invoice-card]");
-    const pill = document.querySelector("[data-last-invoice-pill]");
-    const history = document.querySelector("[data-payment-history]");
+    const cardDetails = document.querySelector("[data-last-invoice-details]");
+    const history = document.querySelector("[data-payment-history-list]");
     const statusPill = document.querySelector("[data-last-invoice-status]");
+    const headingStatus = document.querySelector("[data-payment-status]");
+    const refreshButton = document.querySelector("[data-refresh-invoice]");
+    const grantBadge = document.querySelector("[data-registration-grant-badge]");
 
     if (balanceValue) balanceValue.textContent = String(state.balance ?? "0");
     if (balanceNote) balanceNote.textContent = t("wallet.starterGrant");
+    if (grantBadge) grantBadge.textContent = t("wallet.registrationGrantBadge");
 
     if (!lastInvoice) {
         if (emptyBlock) emptyBlock.hidden = false;
         if (cardBlock) cardBlock.hidden = true;
-        if (pill) {
-            pill.textContent = state.balance === null ? t("wallet.loading") : t("starter");
-            pill.className = "status-pill neutral";
+        if (cardDetails) cardDetails.hidden = true;
+        if (headingStatus) {
+            headingStatus.textContent = state.balance === null ? t("wallet.loading") : t("starter");
+            headingStatus.className = "status-pill neutral";
         }
+        if (refreshButton) refreshButton.hidden = true;
     } else {
         if (emptyBlock) emptyBlock.hidden = true;
         if (cardBlock) cardBlock.hidden = false;
-        if (pill) {
-            pill.textContent = formatPaymentStatus(lastInvoice.status);
-            pill.className = `status-pill ${statusTone(lastInvoice.status)}`;
+        if (cardDetails) cardDetails.hidden = false;
+        if (cardBlock) cardBlock.dataset.status = lastInvoice.status;
+        if (headingStatus) {
+            headingStatus.textContent = formatPaymentStatus(lastInvoice.status);
+            headingStatus.className = `status-pill ${statusTone(lastInvoice.status)}`;
         }
         if (statusPill) {
             statusPill.textContent = formatPaymentStatus(lastInvoice.status);
             statusPill.className = `status-pill ${statusTone(lastInvoice.status)}`;
         }
         document.querySelector("[data-last-invoice-amount]")?.replaceChildren(document.createTextNode(formatRub(lastInvoice.amount)));
+        document.querySelector("[data-last-invoice-amount-copy]")?.replaceChildren(document.createTextNode(formatRub(lastInvoice.amount)));
         document.querySelector("[data-last-invoice-email]")?.replaceChildren(document.createTextNode(lastInvoice.email || "—"));
         document.querySelector("[data-last-invoice-credits]")?.replaceChildren(document.createTextNode(`${lastInvoice.credits} ${t("credits")}`));
         document.querySelector("[data-last-invoice-state]")?.replaceChildren(document.createTextNode(formatPaymentStatus(lastInvoice.status)));
-        document.querySelector("[data-last-invoice-number]")?.replaceChildren(document.createTextNode(`#${String(lastInvoice.invoiceId).padStart(6, "0")}`));
+        document.querySelector("[data-last-invoice-number]")?.replaceChildren(
+            document.createTextNode(
+                formatTemplate(
+                    lastInvoice.status === "paid"
+                        ? "wallet.paidInvoice"
+                        : lastInvoice.status === "failed" || lastInvoice.status === "cancelled" || lastInvoice.status === "expired"
+                          ? "wallet.failedInvoice"
+                          : "wallet.pendingInvoice",
+                    {
+                        invoiceId: String(lastInvoice.invoiceId).padStart(6, "0"),
+                        amount: formatRub(lastInvoice.amount),
+                    }
+                )
+            )
+        );
+        document.querySelector("[data-last-invoice-number-copy]")?.replaceChildren(document.createTextNode(`#${String(lastInvoice.invoiceId).padStart(6, "0")}`));
         document.querySelector("[data-last-invoice-meta]")?.replaceChildren(document.createTextNode(lastInvoice.createdAt));
+        if (refreshButton) refreshButton.hidden = lastInvoice.status !== "pending";
     }
 
     if (!history) return;
     if (!state.payments.length) {
-        history.innerHTML = `<div class="history-card"><div><strong>${t("wallet.emptyHistory")}</strong><div class="meta">${t("wallet.paymentHistoryHint")}</div></div></div>`;
-        return;
-    }
-    history.innerHTML = state.payments
-        .map((payment) => `
-            <div class="history-card">
-                <div>
-                    <strong>#${String(payment.invoiceId).padStart(6, "0")} · ${formatRub(payment.amount)}</strong>
-                    <div class="meta">${payment.email || "—"} · ${payment.createdAt}</div>
+        history.innerHTML = `<div class="history-empty"><span class="history-empty-icon" aria-hidden="true">🧾</span><span>${t("wallet.emptyHistory")}</span></div>`;
+    } else {
+        history.innerHTML = state.payments
+            .map((payment) => `
+                <div class="history-item payment-history-item">
+                    <div>
+                        <strong>#${String(payment.invoiceId).padStart(6, "0")} · ${formatRub(payment.amount)}</strong>
+                        <div class="meta">${payment.email || "—"} · ${payment.createdAt} · ${payment.credits} ${t("credits")}</div>
+                    </div>
+                    <span class="status-pill ${statusTone(payment.status)}">${formatPaymentStatus(payment.status)}</span>
                 </div>
-                <span class="status-pill ${statusTone(payment.status)}">${formatPaymentStatus(payment.status)}</span>
-            </div>
-        `)
-        .join("");
+            `)
+            .join("");
+    }
+
+    document.querySelectorAll("[data-topup-amount]").forEach((button) => {
+        const amount = normalizeTopUpAmount(button.dataset.topupAmount);
+        const credits = Number(button.dataset.topupCredits || creditsForAmount(amount));
+        const name = button.querySelector(".package-name");
+        const meta = button.querySelector("[data-topup-meta]");
+        if (name) name.textContent = formatRub(amount);
+        if (meta) meta.textContent = topUpMeta(credits);
+        button.dataset.selected = String(amount === state.selectedAmount);
+    });
 }
 
 function renderConfirmation() {
-    document.querySelector("[data-confirm-amount]")?.replaceChildren(document.createTextNode(formatRub(state.selectedAmount)));
-    document.querySelector("[data-confirm-email]")?.replaceChildren(document.createTextNode(state.email || "name@example.com"));
-    document.querySelector("[data-confirm-credits]")?.replaceChildren(document.createTextNode(`${creditsForAmount(state.selectedAmount)} ${t("credits")}`));
+    const credits = creditsForAmount(state.selectedAmount);
+    document.querySelector("[data-topup-summary-title]")?.replaceChildren(
+        document.createTextNode(getTopUpPackage(state.selectedAmount) ? t("wallet.summaryPackageTitle") : t("wallet.summaryCustomTitle"))
+    );
+    document.querySelector("[data-topup-summary-meta]")?.replaceChildren(
+        document.createTextNode(
+            formatTemplate("wallet.packageSummary", {
+                amount: formatRub(state.selectedAmount),
+                credits,
+            })
+        )
+    );
 }
 
 function syncEmailInput() {
-    const emailInput = document.querySelector("[data-email-input]");
+    const emailInput = document.querySelector("[data-topup-email]");
     if (emailInput && emailInput.value !== state.email) {
         emailInput.value = state.email;
     }
@@ -878,7 +994,7 @@ async function createPayment() {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-                amount_rub: state.selectedAmount.toFixed(2),
+                amount_rub: normalizeTopUpAmount(state.selectedAmount).toFixed(2),
                 email: state.email || null,
                 pricing_version: PRICING_VERSION,
                 source_screen: "cabinet",
@@ -1485,21 +1601,11 @@ function bindEvents() {
         button.addEventListener("click", () => setView(button.dataset.nav));
     });
 
-    document.querySelectorAll("[data-step-tab]").forEach((button) => {
-        button.addEventListener("click", () => setPaymentStep(Number(button.dataset.stepTab)));
+    document.querySelectorAll("[data-topup-amount]").forEach((button) => {
+        button.addEventListener("click", () => setSelectedAmount(Number(button.dataset.topupAmount)));
     });
 
-    document.querySelectorAll("[data-amount]").forEach((button) => {
-        button.addEventListener("click", () => setSelectedAmount(Number(button.dataset.amount)));
-    });
-
-    document.querySelector("[data-next-step][data-target-step='2']")?.addEventListener("click", () => setPaymentStep(2));
-    document.querySelector("[data-next-step][data-target-step='3']")?.addEventListener("click", () => setPaymentStep(3));
-    document.querySelectorAll("[data-prev-step]").forEach((button) => {
-        button.addEventListener("click", () => setPaymentStep(Number(button.dataset.targetStep)));
-    });
-
-    document.querySelector("[data-email-input]")?.addEventListener("input", (event) => {
+    document.querySelector("[data-topup-email]")?.addEventListener("input", (event) => {
         state.email = event.target.value.trim();
         renderConfirmation();
     });
@@ -1511,12 +1617,11 @@ function bindEvents() {
     });
     document.querySelector("[data-reset-wizard]")?.addEventListener("click", () => {
         state.paymentStep = 1;
-        state.selectedAmount = 900;
+        state.selectedAmount = 500;
         state.email = "";
-        const input = document.querySelector("[data-email-input]");
+        const input = document.querySelector("[data-topup-email]");
         if (input) input.value = "";
         setSelectedAmount(state.selectedAmount);
-        setPaymentStep(1);
         renderConfirmation();
         setWalletMessage("");
     });
@@ -1568,11 +1673,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     bindEvents();
     handlePaymentReturn();
 
-    const emailInput = document.querySelector("[data-email-input]");
     syncEmailInput();
 
     setSelectedAmount(state.selectedAmount);
-    setPaymentStep(1);
     renderWallet();
     renderRenders();
     updateTopbarCaption();

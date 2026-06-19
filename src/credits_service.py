@@ -13,6 +13,22 @@ class InsufficientCreditsError(Exception):
     """Недостаточно credits для запуска рендера."""
 
 
+async def _has_starter_grant_ledger_entry(conn: asyncpg.Connection, user_id: int) -> bool:
+    try:
+        found = await conn.fetchval(
+            """
+            SELECT 1
+            FROM credit_ledger
+            WHERE idempotency_key = $1
+            LIMIT 1
+            """,
+            f"starter_grant:{user_id}",
+        )
+    except asyncpg.PostgresError:
+        return False
+    return found is not None
+
+
 async def ensure_credit_account(conn: asyncpg.Connection, user_id: int) -> int:
     """Создать аккаунт credits и один раз выдать стартовый grant."""
     await conn.execute(
@@ -23,20 +39,35 @@ async def ensure_credit_account(conn: asyncpg.Connection, user_id: int) -> int:
         """,
         user_id,
     )
-    account = await conn.fetchrow(
-        """
-        SELECT balance, trial_used_at
-        FROM user_credit_accounts
-        WHERE user_id = $1
-        FOR UPDATE
-        """,
-        user_id,
-    )
+    try:
+        account = await conn.fetchrow(
+            """
+            SELECT balance, trial_used_at
+            FROM user_credit_accounts
+            WHERE user_id = $1
+            FOR UPDATE
+            """,
+            user_id,
+        )
+        trial_used_at = account["trial_used_at"] if account is not None else None
+    except asyncpg.UndefinedColumnError:
+        account = await conn.fetchrow(
+            """
+            SELECT balance
+            FROM user_credit_accounts
+            WHERE user_id = $1
+            FOR UPDATE
+            """,
+            user_id,
+        )
+        trial_used_at = None
     if account is None:
         raise RuntimeError(f"user_credit_accounts row missing for user_id={user_id}")
 
     balance = int(account["balance"])
-    if account["trial_used_at"] is None and STARTER_GRANT_CREDITS > 0:
+    if trial_used_at is None and STARTER_GRANT_CREDITS > 0:
+        if await _has_starter_grant_ledger_entry(conn, user_id):
+            return balance
         balance_after = balance + STARTER_GRANT_CREDITS
         await conn.execute(
             """

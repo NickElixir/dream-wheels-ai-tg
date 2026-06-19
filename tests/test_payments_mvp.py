@@ -1,11 +1,16 @@
 import asyncio
 from datetime import datetime
 
+import asyncpg
 from fastapi.testclient import TestClient
 
 from src.main import app
-from src.payments_service import get_starter_grant_for_user, serialize_payment_row
-from src.payments_service import calculate_topup_credits, normalize_amount_rub
+from src.payments_service import (
+    calculate_topup_credits,
+    get_starter_grant_for_user,
+    normalize_amount_rub,
+    serialize_payment_row,
+)
 
 client = TestClient(app)
 
@@ -64,6 +69,26 @@ def test_serialize_payment_row_includes_receipt_email():
 def test_get_starter_grant_for_user_returns_trial_grant_payload():
     class FakeConn:
         async def fetchrow(self, *_args, **_kwargs):
+            return {
+                "credits_delta": 3,
+                "created_at": datetime(2026, 6, 19, 9, 0, 0),
+            }
+
+    payload = asyncio.run(get_starter_grant_for_user(FakeConn(), user_id=123))
+
+    assert payload == {"credits": 3, "created_at": "2026-06-19T09:00:00"}
+
+
+def test_get_starter_grant_for_user_falls_back_to_legacy_delta_columns():
+    class FakeConn:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        async def fetchrow(self, query, *_args, **_kwargs):
+            self.calls += 1
+            if self.calls == 1:
+                raise asyncpg.UndefinedColumnError("event_type missing")
+            assert "delta_credits AS credits_delta" in query
             return {
                 "credits_delta": 3,
                 "created_at": datetime(2026, 6, 19, 9, 0, 0),

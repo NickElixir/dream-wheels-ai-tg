@@ -19,14 +19,86 @@ async def _has_starter_grant_ledger_entry(conn: asyncpg.Connection, user_id: int
             """
             SELECT 1
             FROM credit_ledger
-            WHERE idempotency_key = $1
+            WHERE user_id = $1
+              AND (
+                  metadata->>'kind' = 'starter_grant'
+                  OR event_type = 'trial_grant'
+                  OR operation_type = 'manual_adjustment'
+              )
             LIMIT 1
             """,
-            f"starter_grant:{user_id}",
+            user_id,
         )
     except asyncpg.PostgresError:
         return False
     return found is not None
+
+
+async def _insert_starter_grant_ledger_entry(
+    conn: asyncpg.Connection,
+    *,
+    user_id: int,
+    balance_after: int,
+) -> None:
+    # Ledger is an audit trail. Missing compat columns should not block the user-facing balance flow.
+    try:
+        await conn.execute(
+            """
+            INSERT INTO credit_ledger (
+                user_id,
+                event_type,
+                credits_delta,
+                balance_after,
+                idempotency_key,
+                metadata
+            )
+            VALUES (
+                $1,
+                'trial_grant',
+                $2,
+                $3,
+                $4,
+                jsonb_build_object('kind', 'starter_grant')
+            )
+            ON CONFLICT (idempotency_key) DO NOTHING
+            """,
+            user_id,
+            STARTER_GRANT_CREDITS,
+            balance_after,
+            f"starter_grant:{user_id}",
+        )
+        return
+    except asyncpg.UndefinedColumnError:
+        logger.warning("⚠️ legacy credit_ledger schema detected; using fallback starter grant insert")
+    except asyncpg.PostgresError:
+        logger.exception(f"❌ starter grant ledger insert failed for user_id={user_id}")
+        return
+
+    try:
+        await conn.execute(
+            """
+            INSERT INTO credit_ledger (
+                user_id,
+                operation_type,
+                delta_credits,
+                amount_value,
+                currency,
+                metadata
+            )
+            VALUES (
+                $1,
+                'manual_adjustment',
+                $2,
+                NULL,
+                'RUB',
+                jsonb_build_object('kind', 'starter_grant')
+            )
+            """,
+            user_id,
+            STARTER_GRANT_CREDITS,
+        )
+    except asyncpg.PostgresError:
+        logger.exception(f"❌ legacy starter grant ledger insert failed for user_id={user_id}")
 
 
 async def ensure_credit_account(conn: asyncpg.Connection, user_id: int) -> int:
@@ -72,52 +144,55 @@ async def ensure_credit_account(conn: asyncpg.Connection, user_id: int) -> int:
             return balance
         balance_after = balance + STARTER_GRANT_CREDITS
         if has_trial_used_at_column:
-            await conn.execute(
-                """
-                UPDATE user_credit_accounts
-                SET balance = $2,
-                    trial_used_at = CURRENT_TIMESTAMP,
-                    updated_at = CURRENT_TIMESTAMP
-                WHERE user_id = $1
-                """,
-                user_id,
-                balance_after,
-            )
+            try:
+                await conn.execute(
+                    """
+                    UPDATE user_credit_accounts
+                    SET balance = $2,
+                        trial_used_at = CURRENT_TIMESTAMP,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE user_id = $1
+                    """,
+                    user_id,
+                    balance_after,
+                )
+            except asyncpg.UndefinedColumnError:
+                has_trial_used_at_column = False
+                await conn.execute(
+                    """
+                    UPDATE user_credit_accounts
+                    SET balance = $2
+                    WHERE user_id = $1
+                    """,
+                    user_id,
+                    balance_after,
+                )
         else:
-            await conn.execute(
-                """
-                UPDATE user_credit_accounts
-                SET balance = $2,
-                    updated_at = CURRENT_TIMESTAMP
-                WHERE user_id = $1
-                """,
-                user_id,
-                balance_after,
-            )
-        await conn.execute(
-            """
-            INSERT INTO credit_ledger (
-                user_id,
-                event_type,
-                credits_delta,
-                balance_after,
-                idempotency_key,
-                metadata
-            )
-            VALUES (
-                $1,
-                'trial_grant',
-                $2,
-                $3,
-                $4,
-                jsonb_build_object('kind', 'starter_grant')
-            )
-            ON CONFLICT (idempotency_key) DO NOTHING
-            """,
-            user_id,
-            STARTER_GRANT_CREDITS,
-            balance_after,
-            f"starter_grant:{user_id}",
+            try:
+                await conn.execute(
+                    """
+                    UPDATE user_credit_accounts
+                    SET balance = $2,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE user_id = $1
+                    """,
+                    user_id,
+                    balance_after,
+                )
+            except asyncpg.UndefinedColumnError:
+                await conn.execute(
+                    """
+                    UPDATE user_credit_accounts
+                    SET balance = $2
+                    WHERE user_id = $1
+                    """,
+                    user_id,
+                    balance_after,
+                )
+        await _insert_starter_grant_ledger_entry(
+            conn,
+            user_id=user_id,
+            balance_after=balance_after,
         )
         logger.info(f"✅ Выдан стартовый grant user_id={user_id}: +{STARTER_GRANT_CREDITS} credits")
         return balance_after

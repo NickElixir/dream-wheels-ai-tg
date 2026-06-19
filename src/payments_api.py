@@ -19,12 +19,15 @@ from src.payments_service import (
     PaymentValidationError,
     TopUpIntent,
     create_topup_payment,
-    get_starter_grant_for_user,
     get_payment_status_by_invoice,
+    get_starter_grant_for_user,
     list_payments_for_user,
     mark_payment_paid,
     normalize_amount_rub,
     verify_result_signature,
+)
+from src.payments_service import (
+    calculate_topup_credits as _calculate_topup_credits,
 )
 from src.users_service import ensure_user
 
@@ -32,6 +35,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/payments", tags=["payments"])
 EMAIL_RE = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
+calculate_topup_credits = _calculate_topup_credits
 
 
 class TopUpCreateRequest(BaseModel):

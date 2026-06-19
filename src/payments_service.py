@@ -227,14 +227,38 @@ async def get_starter_grant_for_user(
             SELECT credits_delta, created_at
             FROM credit_ledger
             WHERE user_id = $1
-              AND event_type = 'trial_grant'
+              AND (
+                  event_type = 'trial_grant'
+                  OR metadata->>'kind' = 'starter_grant'
+              )
             ORDER BY created_at ASC
             LIMIT 1
             """,
             user_id,
         )
     except asyncpg.UndefinedColumnError:
-        logger.warning("⚠️ credit_ledger.event_type is unavailable; starter grant history skipped")
+        try:
+            row = await conn.fetchrow(
+                """
+                SELECT delta_credits AS credits_delta, created_at
+                FROM credit_ledger
+                WHERE user_id = $1
+                  AND (
+                      operation_type = 'manual_adjustment'
+                      OR metadata->>'kind' = 'starter_grant'
+                  )
+                ORDER BY created_at ASC
+                LIMIT 1
+                """,
+                user_id,
+            )
+        except asyncpg.PostgresError:
+            logger.warning(
+                "⚠️ credit_ledger legacy schema unavailable; starter grant history skipped"
+            )
+            return None
+    except asyncpg.PostgresError:
+        logger.warning("⚠️ credit_ledger lookup failed; starter grant history skipped")
         return None
     if row is None:
         return None

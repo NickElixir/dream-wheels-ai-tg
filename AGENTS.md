@@ -1,157 +1,118 @@
 # AGENTS.md
 
-Инструкции для Codex в этом репозитории. Читается автоматически при старте сессии.
+Router-инструкции для Codex в этом репозитории. Детальные правила живут в `CONTRIBUTING.md` и project skills.
 
-## Code conventions (single source of truth)
+## Project
 
-**Перед изменениями кода прочитай [CONTRIBUTING.md](CONTRIBUTING.md)** — там полный гайд по стилю, бранчингу, коммитам, логированию, безопасности. Дублировать не буду; основные пункты, актуальные при каждой генерации:
+Dream Wheels AI: Telegram-бот и Mini App backend для AI-примерки автомобильных дисков.
 
-### Logging — обязательно соблюдать
+Stack: Python 3.12, FastAPI, asyncpg, Redis/Upstash, Supabase Postgres/Storage, python-telegram-bot, Reve API, Robokassa, Render.
 
-```python
-# ❌ НЕ делать
-except Exception as e:
-    logger.error(f"Ошибка: {e}")
+## Hard Rules
 
-# ✅ Делать
-except Exception as e:
-    logger.exception(f"Ошибка обработки job_id={job_id}: {e}")
+- Перед изменениями кода читать `CONTRIBUTING.md`.
+- Общение с пользователем на русском, технически и кратко.
+- Не объяснять основы Python/FastAPI/async/REST/Git без запроса.
+- Type hints в публичных Python-сигнатурах, async для I/O, абсолютные импорты от `src.*`.
+- Ruff - единственный formatter/linter; запускать релевантные проверки после правок.
+- В `except` использовать `logger.exception(...)` с контекстом (`job_id`, `user_id`, `telegram_user_id`).
+- Секреты не логировать, не коммитить, не выводить в чат.
+- `.env.example` обновлять при новых env vars.
+- Все DDL-изменения только через `migrations/`; не править Supabase schema UI мимо миграций.
+- Деструктивные действия, prod-write, SQL `DROP`/массовые `DELETE`, force push, Render/Supabase/Robokassa live операции - только после явного подтверждения.
+- Перед утверждениями о внешних сервисах сверяться с official docs.
+
+## Skills
+
+Shared skill sources лежат в `docs/agent-skills/`. Чтобы Codex начал использовать их автоматически, установи symlinks:
+
+```bash
+bash scripts/install-agent-skills.sh
 ```
 
-- `logger.exception` в catch-блоках (даёт stack trace)
-- Контекст в сообщениях: `job_id`, `user_id`, `telegram_user_id`
-- Эмодзи в начале: 🟢 startup, 🔥 in-progress, ✅ success, ❌ failure, 📥 incoming
-- Никогда не логировать секреты (BOT_TOKEN, пароли)
+Используй skills по доменам:
 
-### Code style
+- `dreamwheels-payments`: Robokassa, payments, invoice, receipt, signature, ResultURL, SuccessURL, top-up, credits, ledger, idempotency.
+- `dreamwheels-data-storage`: migrations, Supabase, RLS, Storage buckets, policies, SQL rollout, schema compatibility.
+- `dreamwheels-telegram-webapp`: Telegram Mini App, `initData`, frontend upload/polling, file picker, IndexedDB drafts, Telegram SDK, Vercel frontend config.
+- `dreamwheels-runtime-release`: Render, deploy, rollback, health check, env vars, Telegram polling conflict, keep-alive, runtime logs.
+- `dreamwheels-review`: code review, PR review, findings-first, risk scan, test selection, change impact.
 
-- Python 3.12, type hints в публичных сигнатурах
-- Async везде где I/O
-- `from src.config import ...` (абсолютные импорты)
-- Минимум комментариев. Комментарии — про **WHY**, не **WHAT**
-- Pydantic для валидации на границах
-- Ruff форматирует и линтит — конфиг в [pyproject.toml](pyproject.toml)
+Если несколько skills подходят, выбрать основной домен и подключать второй только для конкретного риска: payments + data-storage для платежной миграции, telegram-webapp + payments для UI оплаты, runtime-release + review для релизного review.
 
-### Коммиты и ветки
+## Codex Cloud
 
-- Conventional commits: `feat:`, `fix:`, `chore:`, `refactor:`, `docs:`, `test:`
-- Ветви: `feature/* → dev → test → main`
-- **НЕ пушить в `main`** напрямую — только через PR
-- Атомарные коммиты, не смешивать рефакторинг с фиксами
+Если задача длинная, хорошо ограничена по scope и не требует production-write действий, рекомендовать Codex Cloud из VSCode Codex extension. Хорошие кандидаты: рефакторинг, тесты, review, поиск regressions, документация, подготовка миграции без применения в prod.
 
-### Безопасность
+`AGENTS.md` не отправляет задачу в Cloud автоматически. Агент должен предложить delegation и подготовить task packet; разработчик вручную запускает Cloud task в Codex extension.
 
-- Секреты только в `.env`, никогда в коде/коммитах/чате/логах
-- `.env.example` обновлять при новых переменных
-- Деструктивные действия (DROP, DELETE без WHERE, force push) — подтверждение
+Перед передачей в Cloud сформировать task packet:
 
-## Профиль пользователя
+```markdown
+Goal:
+<один конкретный результат>
 
-**Николай Луценко** — Python Backend Developer (4+ года прод-опыт), магистр Сколтеха (Engineering Systems / AI in Robotics).
+Repo context:
+- Branch/base: <текущая ветка и целевая ветка>
+- Relevant files: <пути к ключевым файлам>
+- Primary skill path: docs/agent-skills/<skill-name>/SKILL.md
+- Read first: AGENTS.md, CONTRIBUTING.md, README.md, <domain docs>
 
-**Прод-опыт:**
-- НМИЦ Блохина (2025): FastAPI + PostgreSQL + Redis микросервисы, JWT, RBAC, Repository pattern
-- Дрим Холдинг (2021–2025): Python e-commerce backend, REST API, маркетплейсы
-- Robotics & CV: ROS2, OpenCV, ONNX, YOLO fine-tuning, edge на Raspberry Pi
-- ML/DL: Keras, PyTorch, TensorFlow (DeepLearning School МФТИ)
+Constraints:
+- Follow CONTRIBUTING.md.
+- Do not touch secrets or .env.
+- Do not apply migrations or call production APIs.
+- Keep changes scoped to <modules>.
+- Add/update tests for changed behavior.
 
-## Стиль ответов
+Verification:
+- Run: ruff check .
+- Run: ruff format --check .
+- Run: pytest -q
+- If a command cannot run, report why.
 
-### НЕ объяснять (использует профессионально)
+Output:
+- Summary of changes.
+- Tests run and results.
+- Risks, assumptions, and follow-up needed.
+```
 
-- Python: async/await, type hints, классы, декораторы, контекстные менеджеры
-- Backend: REST, JWT, ORM, миграции, connection pooling, prepared statements
-- FastAPI / Pydantic / asyncpg — основы
-- ML-термины: модель, инференс, fine-tuning, квантизация
-- Git, conventional commits, pre-commit
-- Patterns (Repository, Factory)
-- Linux / Bash базы
+## Multi-Agent Flow
 
-### Сразу технически
+Для VSCode Codex extension мультиагентность = несколько отдельных Codex чатов/Cloud tasks, координируемых главным coordinator-чатом.
 
-- "Asyncpg падает на pgBouncer transaction mode — нужен `statement_cache_size=0`"
-- "lifespan заменил on_event с FastAPI 0.93+"
-- "RLS на public.* блокирует PostgREST anon-доступ"
-- "Render Free spin-down 15 мин убивает long-poll бота"
+Готовые prompt templates и диаграмма: `docs/agent-workflows/README.md`.
 
-### Можно пояснить кратко
+Coordinator:
 
-- Render-quirks: rolling deploys, Free tier spin-down, port detection, Health Check
-- Supabase pooler quirks (port 5432 vs 6543, pool modes)
-- Upstash REST vs RESP, free tier limits
-- Telegram polling vs webhook trade-offs
-- Новые фичи Python 3.12+ если использую
-- MCP-протокол
+- классифицирует задачу и выбирает основной skill;
+- указывает точный repo-path к `SKILL.md` в каждом Cloud task packet;
+- дробит работу на независимые task packets;
+- запрещает агентам выходить за scope и трогать одни и те же файлы без причины;
+- собирает результаты и принимает финальный diff.
 
-### Длина и формат
+Роли по умолчанию:
 
-- **Default = 3-7 предложений**
-- Yes/no — одно предложение
-- Развёрнуто только при: архитектурных trade-offs, новых платформенных концепциях, явной просьбе, security/data-loss рисках
-- Без жизненных аналогий
-- Без trailing summary
-- Таблицы — только при сравнении опций или показе данных
-- Заголовки `##` — только в реально длинных ответах (>15 строк)
-- Эмодзи — только если просит явно
+- `domain scan`: ищет бизнес/интеграционные ограничения в выбранном skill.
+- `codebase scan`: ищет затронутые файлы, call paths, tests.
+- `implementation`: делает scoped patch.
+- `validation`: проверяет diff в review mindset, findings-first.
+- `docs`: подключается только если меняется API, env, rollout, migration или user-facing behavior.
 
-### Watch
+Если в текущем интерфейсе доступен Codex subagents workflow, можно просить: `Spawn one agent per point, wait for all results, then summarize findings`.
 
-Иногда спрашивает "что такое X?" не потому что не знает, а проверяет проектный контекст. Default — концизный технический ответ; если нужна глубина, попросит сам.
+## Local MCP / Env
 
-## Технические предпочтения
+MCP-серверы (`render`, `supabase`, `upstash`) читают токены из env-переменных при старте Codex.
 
-- **OS**: macOS Apple Silicon M1, Homebrew в `/opt/homebrew`, arm64 native
-- **Stack**: Python 3.12, FastAPI, asyncpg, redis-py, python-telegram-bot. Render hosting. Supabase Postgres + Upstash Redis
-- **Languages**: код на Python, общение по-русски, code comments на русском допустимы
-- **Presentation materials**: всегда на английском языке, даже если обсуждение в чате идёт на русском
-- **Идиомы**: type hints всегда, Pydantic для валидации, async везде где I/O
+macOS quirk: GUI-приложения, включая VSCode, не читают `~/.zshrc`. Чтобы env подтянулся: закрыть VSCode, открыть Terminal/iTerm, `cd <repo>`, запустить `code .`, затем перезапустить Codex в новом VSCode window.
 
-## Auto mode
+## Canonical References
 
-Когда auto mode активен — действовать без переспросов по мелочам. Деструктивные/production-write действия — всё равно подтверждение.
-
-## Окружение для MCP / API ключей
-
-MCP-серверы (`render`, `supabase`, `upstash`) читают токены из env-переменных (`RENDER_API_KEY`, `SUPABASE_ACCESS_TOKEN`, `UPSTASH_API_KEY` и т.д.) при старте Codex.
-
-**macOS quirk**: GUI-приложения (включая VSCode) НЕ читают `~/.zshrc`. Если переменные объявлены в `~/.zshrc`, VSCode их не увидит, и MCP вернёт `unauthorized`.
-
-**Чтобы env подтянулся:**
-1. Закрыть VSCode
-2. Открыть Terminal.app / iTerm
-3. `cd <repo>` (zshrc автоматически прогрузится)
-4. `code .` — запуск VSCode из шелла, env наследуется
-5. Перезапустить Codex в новом VSCode
-
-Если команды `code` нет: в VSCode `Cmd+Shift+P` → **Shell Command: Install 'code' command in PATH**.
-
-Альтернатива: положить переменные в `~/.zprofile` — он читается login shell'ом и наследуется launchd, но влияет на все GUI-приложения системы.
-
-## Документация внешних сервисов
-
-Перед утверждениями про поведение внешних сервисов — сверяться с официальными docs (через WebFetch). Не полагаться на знание из обучения.
-
-| Сервис | Docs | Зачем |
-|--------|------|-------|
-| Render | https://render.com/docs | деплой, services, env vars, MCP |
-| Render REST API | https://api-docs.render.com/reference/introduction | программный доступ |
-| Render API Keys | https://dashboard.render.com/u/settings?add-api-key | создание `RENDER_API_KEY` |
-| Telegram Bot API | https://core.telegram.org/bots/api | `WebAppInfo`, file URLs, updates |
-| Telegram Mini Apps | https://core.telegram.org/bots/webapps | `tg.initData`, кнопки, lifecycle, **iOS WebView reload-on-file-picker quirk** |
-| Robokassa Docs | https://docs.robokassa.ru/ru/quick-start | `MerchantLogin`, `SignatureValue`, `ResultURL`, `SuccessURL`, `FailURL` |
-| Robokassa payment interface | https://docs.robokassa.ru/ru/pay-interface | `https://auth.robokassa.ru/Merchant/Index.aspx`, сборка подписи, `Receipt` |
-| Robokassa notifications | https://docs.robokassa.ru/ru/notifications-and-redirects | `ResultURL` callback, redirect flow, подтверждение `OK{InvId}` |
-| Supabase | https://supabase.com/docs | Storage, Auth, Postgres |
-| Supabase Storage | https://supabase.com/docs/guides/storage | RLS, signed URLs, лимиты |
-| Upstash Redis | https://upstash.com/docs/redis | REST/RESP, лимиты Free tier |
-| Reve API | endpoint: `https://api.reve.com/v1/image/remix` | публичных docs нет — смотреть `src/reve_client.py` |
-
-## Полезные ссылки
-
-- [CONTRIBUTING.md](CONTRIBUTING.md) — полный гайд по работе с кодом
-- [README.md](README.md) — стек, деплой, rollback
-- [docs/TEAM_HANDOFF_CHECKLIST.md](docs/TEAM_HANDOFF_CHECKLIST.md) — чек-лист передачи команде
-- [migrations/README.md](migrations/README.md) — стратегия миграций БД
-- [.env.example](.env.example) — переменные окружения
-- [pyproject.toml](pyproject.toml) — ruff config
-- [.pre-commit-config.yaml](.pre-commit-config.yaml) — git hooks
+- `CONTRIBUTING.md` - code style, logging, branching, security.
+- `README.md` - stack, architecture, deploy, rollback.
+- `migrations/README.md` - database migration strategy.
+- `.env.example` - env vars.
+- `docs/TEAM_HANDOFF_CHECKLIST.md` - team handoff.
+- `docs/agent-workflows/README.md` - multi-agent prompts and developer flow.
+- `docs/CHAT_CONTEXT_HANDOFF.md` - historical project context; use carefully, may be stale.

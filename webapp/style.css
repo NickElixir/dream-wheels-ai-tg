@@ -107,6 +107,40 @@ a {
     color: var(--text-subtle);
 }
 
+.website-auth-button {
+    border: 1px solid rgba(221, 255, 0, 0.28);
+    border-radius: 14px;
+    background: var(--accent-soft);
+    color: var(--accent-strong);
+    padding: 10px 14px;
+    font-size: 13px;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.website-auth-button:disabled {
+    cursor: wait;
+    opacity: 0.65;
+}
+
+@media (max-width: 560px) {
+    .topbar-actions {
+        gap: 8px;
+    }
+
+    .website-auth-button {
+        max-width: 132px;
+        padding: 9px 10px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .topbar-caption {
+        display: none;
+    }
+}
+
 .topbar-caption {
     font-size: 15px;
 }

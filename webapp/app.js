@@ -16,7 +16,9 @@ const STAGING_API_BASE_URL = "https://dream-wheels-ai-robokassa-staging.onrender
 const LOCAL_API_BASE_URL = "http://127.0.0.1:10000";
 const API_MODE_STORAGE_KEY = "dreamWheelsApiMode";
 const DEV_TELEGRAM_USER_ID_STORAGE_KEY = "dreamWheelsDevTelegramUserId";
+const WEBSITE_AUTH_STORAGE_KEY = "dreamWheelsWebsiteAuth";
 const RECENT_RENDERS_STORAGE_KEY = "dreamWheelsRecentRenders";
+const TELEGRAM_LOGIN_SCRIPT_URL = "https://oauth.telegram.org/js/telegram-login.js?5";
 const PRICING_VERSION = "credits-v1";
 const TOPUP_MIN_AMOUNT = 100;
 const TOPUP_MAX_AMOUNT = 3000;
@@ -36,6 +38,12 @@ const DRAFT_STORE_NAME = "files";
 
 const I18N = {
     ru: {
+        auth: {
+            login: "Войти через Telegram",
+            loggingIn: "Входим...",
+            logout: "Выйти",
+            failed: "Не удалось войти через Telegram",
+        },
         menu: {
             create: "Создать рендер",
             wallet: "Кошелек",
@@ -161,7 +169,7 @@ const I18N = {
             paymentFail: "Платеж не завершен.",
             pendingFresh: "Счет создан. Если вы вернулись из Robokassa, обновите его через несколько секунд",
             pendingStale: "Счет все еще ждет подтверждения. Если оплата не прошла, он останется в ожидании, пока мы не получим финальный статус. Обновите счет позже",
-            authRequired: "Откройте Mini App в Telegram или добавьте ?tgUser=123456 для staging fallback",
+            authRequired: "Откройте Mini App в Telegram или войдите через Telegram на сайте",
             fallbackDisabled: "Web fallback выключен на backend",
             starterGrantTitle: "Первый подарок",
             starterGrantMeta: "{credits} credits · начислено при первом входе",
@@ -225,6 +233,12 @@ const I18N = {
         credits: "credits",
     },
     en: {
+        auth: {
+            login: "Log in with Telegram",
+            loggingIn: "Logging in...",
+            logout: "Log out",
+            failed: "Telegram login failed",
+        },
         menu: {
             create: "Create render",
             wallet: "Wallet",
@@ -350,7 +364,7 @@ const I18N = {
             paymentFail: "Payment was not completed.",
             pendingFresh: "Invoice created. If you returned from Robokassa, refresh it in a few seconds",
             pendingStale: "The invoice is still waiting for confirmation. If the payment did not go through, it may stay pending until a final status arrives. Refresh it later",
-            authRequired: "Open the Mini App in Telegram or add ?tgUser=123456 for staging fallback",
+            authRequired: "Open the Mini App in Telegram or log in with Telegram on the website",
             fallbackDisabled: "Web fallback is disabled on the backend",
             starterGrantTitle: "Starter gift",
             starterGrantMeta: "{credits} credits · added on first launch",
@@ -461,6 +475,20 @@ function resolveDevTelegramUserId() {
     return localStorage.getItem(DEV_TELEGRAM_USER_ID_STORAGE_KEY) || "";
 }
 
+function loadWebsiteAuth() {
+    try {
+        const parsed = JSON.parse(sessionStorage.getItem(WEBSITE_AUTH_STORAGE_KEY) || "null");
+        if (!parsed?.accessToken || Number(parsed.expiresAt || 0) <= Date.now()) {
+            sessionStorage.removeItem(WEBSITE_AUTH_STORAGE_KEY);
+            return null;
+        }
+        return parsed;
+    } catch {
+        sessionStorage.removeItem(WEBSITE_AUTH_STORAGE_KEY);
+        return null;
+    }
+}
+
 function loadRecentRenders() {
     try {
         const raw = localStorage.getItem(RECENT_RENDERS_STORAGE_KEY);
@@ -474,6 +502,7 @@ function loadRecentRenders() {
 const state = {
     apiBaseUrl: resolveApiBaseUrl(),
     devTelegramUserId: resolveDevTelegramUserId(),
+    websiteAuth: loadWebsiteAuth(),
     view: "create",
     menuOpen: false,
     paymentStep: 1,
@@ -529,11 +558,132 @@ function updateCreateFooter() {
     if (!userInfo) return;
     const user = tg?.initDataUnsafe?.user;
     if (!user) {
-        userInfo.textContent = t("create.footerNotTelegram");
+        const websiteUsername = state.websiteAuth?.username;
+        userInfo.textContent = websiteUsername
+            ? `Telegram · @${websiteUsername}`
+            : t("create.footerNotTelegram");
         return;
     }
     const name = [user.first_name, user.last_name].filter(Boolean).join(" ") || `id ${user.id}`;
     userInfo.textContent = `Telegram · ${name}`;
+}
+
+function getWebsiteAuthToken() {
+    if (HAS_TG || !state.websiteAuth) return "";
+    if (Number(state.websiteAuth.expiresAt || 0) <= Date.now()) {
+        state.websiteAuth = null;
+        sessionStorage.removeItem(WEBSITE_AUTH_STORAGE_KEY);
+        updateWebsiteAuthUi();
+        return "";
+    }
+    return state.websiteAuth.accessToken || "";
+}
+
+function withAuthHeaders(headers = {}) {
+    const accessToken = getWebsiteAuthToken();
+    return accessToken ? { ...headers, Authorization: `Bearer ${accessToken}` } : headers;
+}
+
+function updateWebsiteAuthUi() {
+    const button = document.querySelector("[data-website-auth-button]");
+    if (!button) return;
+    button.hidden = HAS_TG;
+    if (HAS_TG) return;
+
+    const username = state.websiteAuth?.username;
+    button.textContent = state.websiteAuth
+        ? `${t("auth.logout")}${username ? ` @${username}` : ""}`
+        : t("auth.login");
+    updateCreateFooter();
+}
+
+function loadTelegramLoginLibrary() {
+    if (window.Telegram?.Login) return Promise.resolve(window.Telegram.Login);
+
+    function resolveLoginLibrary(resolve, reject) {
+        if (window.Telegram?.Login) resolve(window.Telegram.Login);
+        else reject(new Error("Telegram Login library is unavailable"));
+    }
+
+    return new Promise((resolve, reject) => {
+        const existingScript = document.querySelector("script[data-telegram-login-library]");
+        if (existingScript) {
+            existingScript.addEventListener("load", () => resolveLoginLibrary(resolve, reject), {
+                once: true,
+            });
+            existingScript.addEventListener("error", reject, { once: true });
+            return;
+        }
+
+        const script = document.createElement("script");
+        script.src = TELEGRAM_LOGIN_SCRIPT_URL;
+        script.async = true;
+        script.dataset.telegramLoginLibrary = "true";
+        script.addEventListener("load", () => resolveLoginLibrary(resolve, reject), { once: true });
+        script.addEventListener("error", reject, { once: true });
+        document.head.append(script);
+    });
+}
+
+async function loginWithTelegram() {
+    const button = document.querySelector("[data-website-auth-button]");
+    if (button) {
+        button.disabled = true;
+        button.textContent = t("auth.loggingIn");
+    }
+
+    try {
+        const nonceResponse = await fetch(`${state.apiBaseUrl}/auth/telegram/nonce`);
+        if (!nonceResponse.ok) throw new Error(await parseApiError(nonceResponse));
+        const { client_id: clientId, nonce, nonce_token: nonceToken } = await nonceResponse.json();
+        const numericClientId = Number(clientId);
+        if (!Number.isSafeInteger(numericClientId)) throw new Error("Invalid Telegram client_id");
+
+        const telegramLogin = await loadTelegramLoginLibrary();
+        const loginResult = await new Promise((resolve, reject) => {
+            telegramLogin.auth(
+                { client_id: numericClientId, lang: locale, nonce },
+                (result) => {
+                    if (result?.id_token) resolve(result);
+                    else reject(new Error(result?.error || t("auth.failed")));
+                }
+            );
+        });
+
+        const verifyResponse = await fetch(`${state.apiBaseUrl}/auth/telegram/verify-id-token`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id_token: loginResult.id_token, nonce_token: nonceToken }),
+        });
+        if (!verifyResponse.ok) throw new Error(await parseApiError(verifyResponse));
+        const verified = await verifyResponse.json();
+        state.websiteAuth = {
+            accessToken: verified.access_token,
+            expiresAt: Date.now() + Number(verified.expires_in || 0) * 1000,
+            telegramUserId: verified.telegram_user_id,
+            username: verified.username || "",
+        };
+        sessionStorage.setItem(WEBSITE_AUTH_STORAGE_KEY, JSON.stringify(state.websiteAuth));
+        updateWebsiteAuthUi();
+        await loadCabinet();
+    } catch (error) {
+        console.error("[DW] Telegram website login failed", error);
+        setWalletMessage(error?.message || t("auth.failed"), "error");
+    } finally {
+        if (button) button.disabled = false;
+        updateWebsiteAuthUi();
+    }
+}
+
+function logoutWebsiteAuth() {
+    state.websiteAuth = null;
+    sessionStorage.removeItem(WEBSITE_AUTH_STORAGE_KEY);
+    state.balance = null;
+    state.payments = [];
+    state.starterGrant = null;
+    updateWebsiteAuthUi();
+    setWalletMessage(t("wallet.authRequired"), "warning");
+    renderWallet();
 }
 
 function haptic(type) {
@@ -934,7 +1084,7 @@ function renderRenders() {
 
 async function loadCabinet({ silent = false } = {}) {
     const identity = getIdentitySearchParams();
-    if (!identity.toString()) {
+    if (!identity.toString() && !getWebsiteAuthToken()) {
         setWalletMessage(t("wallet.authRequired"), "warning");
         renderWallet();
         return;
@@ -946,7 +1096,9 @@ async function loadCabinet({ silent = false } = {}) {
         setWalletMessage(t("wallet.loading"));
     }
     try {
-        const response = await fetch(`${state.apiBaseUrl}/payments/cabinet?${identity.toString()}`);
+        const response = await fetch(`${state.apiBaseUrl}/payments/cabinet?${identity.toString()}`, {
+            headers: withAuthHeaders(),
+        });
         if (!response.ok) {
             const detail = await parseApiError(response);
             if (response.status === 403) {
@@ -1022,7 +1174,7 @@ function openPaymentUrl(url) {
 
 async function createPayment() {
     const identity = getIdentityPayload();
-    if (!identity.init_data && !identity.telegram_user_id) {
+    if (!identity.init_data && !identity.telegram_user_id && !getWebsiteAuthToken()) {
         setWalletMessage(t("wallet.authRequired"), "warning");
         return;
     }
@@ -1032,7 +1184,7 @@ async function createPayment() {
     try {
         const response = await fetch(`${state.apiBaseUrl}/payments/topups`, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: withAuthHeaders({ "Content-Type": "application/json" }),
             body: JSON.stringify({
                 amount_rub: normalizeTopUpAmount(state.selectedAmount).toFixed(2),
                 email: state.email || null,
@@ -1543,6 +1695,7 @@ async function submitJob() {
         pushDebug("upload:request");
         const resp = await fetch(`${state.apiBaseUrl}/jobs/upload`, {
             method: "POST",
+            headers: withAuthHeaders(),
             body: formData,
         });
         pushDebug("upload:response", `status=${resp.status}`);
@@ -1637,6 +1790,11 @@ function bindEvents() {
         setMenuOpen(!state.menuOpen);
     });
 
+    document.querySelector("[data-website-auth-button]")?.addEventListener("click", () => {
+        if (state.websiteAuth) logoutWebsiteAuth();
+        else void loginWithTelegram();
+    });
+
     document.querySelectorAll("[data-nav]").forEach((button) => {
         button.addEventListener("click", () => setView(button.dataset.nav));
     });
@@ -1710,6 +1868,7 @@ function bindEvents() {
 document.addEventListener("DOMContentLoaded", async () => {
     applyTranslations();
     initTelegram();
+    updateWebsiteAuthUi();
     bindEvents();
     handlePaymentReturn();
 

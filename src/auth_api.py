@@ -14,7 +14,7 @@ from src.auth import (
     issue_website_auth_token,
     verify_telegram_login_id_token,
 )
-from src.config import TELEGRAM_AUTH_TOKEN_TTL_SEC
+from src.config import TELEGRAM_AUTH_TOKEN_TTL_SEC, TELEGRAM_LOGIN_CLIENT_ID
 from src.users_service import ensure_user
 
 logger = logging.getLogger(__name__)
@@ -36,13 +36,19 @@ class TelegramLoginVerifyResponse(BaseModel):
 
 
 class TelegramLoginNonceResponse(BaseModel):
+    client_id: str
     nonce: str
     nonce_token: str
 
 
 @router.get("/telegram/nonce", response_model=TelegramLoginNonceResponse)
 async def telegram_login_nonce():
-    return TelegramLoginNonceResponse(**build_website_login_nonce())
+    if not TELEGRAM_LOGIN_CLIENT_ID:
+        raise HTTPException(status_code=503, detail="Telegram website login is not configured")
+    return TelegramLoginNonceResponse(
+        client_id=TELEGRAM_LOGIN_CLIENT_ID,
+        **build_website_login_nonce(),
+    )
 
 
 @router.post("/telegram/verify-id-token", response_model=TelegramLoginVerifyResponse)

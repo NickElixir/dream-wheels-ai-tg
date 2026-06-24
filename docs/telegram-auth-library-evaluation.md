@@ -67,7 +67,10 @@
 ## Current rollout decision
 
 1. Сейчас централизуем Mini App/dev fallback auth boundary на текущем стеке.
-2. Website Telegram login внедряем как backend verification path:
-   - frontend получает `id_token` через Telegram Login library;
-   - backend валидирует `id_token` и выдаёт собственный short-lived bearer token.
-3. Полный authorization-code redirect flow можно добавить позже, если website потребует pure OIDC redirect вместо JS login library.
+2. Website Telegram login использует официальную Telegram Login JS library:
+   - frontend получает server-generated `nonce` и публичный `client_id` от backend;
+   - Telegram возвращает `id_token` только в callback библиотеки;
+   - backend валидирует подпись и claims, затем выдаёт собственный short-lived bearer token;
+   - bearer хранится в browser `sessionStorage`, не передаётся в URL и не сохраняется между вкладками.
+3. `TELEGRAM_LOGIN_CLIENT_SECRET` зарезервирован для будущего Authorization Code Flow. Он не нужен текущей JS library и никогда не передаётся во frontend.
+4. Полный authorization-code redirect flow имеет смысл добавлять вместе с website-domain/cookie strategy, если понадобится server-side session или сторонний identity broker.

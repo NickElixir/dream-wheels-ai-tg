@@ -8,6 +8,7 @@ client = TestClient(app)
 
 
 def test_telegram_login_nonce_returns_nonce_and_nonce_token(monkeypatch):
+    monkeypatch.setattr(auth_api, "TELEGRAM_LOGIN_CLIENT_ID", "123456789")
     monkeypatch.setattr(
         auth_api,
         "build_website_login_nonce",
@@ -18,9 +19,19 @@ def test_telegram_login_nonce_returns_nonce_and_nonce_token(monkeypatch):
 
     assert response.status_code == 200
     assert response.json() == {
+        "client_id": "123456789",
         "nonce": "nonce-123",
         "nonce_token": "nonce-token-123",
     }
+
+
+def test_telegram_login_nonce_requires_client_id(monkeypatch):
+    monkeypatch.setattr(auth_api, "TELEGRAM_LOGIN_CLIENT_ID", "")
+
+    response = client.get("/auth/telegram/nonce")
+
+    assert response.status_code == 503
+    assert response.json() == {"detail": "Telegram website login is not configured"}
 
 
 def test_verify_id_token_returns_backend_bearer_token(monkeypatch):

@@ -1,76 +1,83 @@
-# Telegram Auth Library Evaluation
+# Telegram Auth Decision
 
-Короткий ADR-style документ для следующего auth шага.
+Короткий decision note для website Telegram login и Mini App auth boundary.
 
 ## Context
 
 Проекту нужен единый Telegram auth boundary для двух каналов:
 
-- Telegram Mini App (`initData`)
+- Telegram Mini App через `initData`
 - website login через Telegram
 
-На текущем этапе email/phone login вне scope.
+Email/phone login сейчас вне scope.
 
 ## Decision
 
-### Mini App auth
+### Mini App
 
-Пока сохраняем backend validation в коде проекта и усиливаем её тестами.
-
-Причины:
-
-- в текущем Python runtime нет готовой поддерживаемой зависимости для Mini App validation;
-- текущая HMAC-валидация уже рабочая и понятная;
-- переход на стороннюю библиотеку ради самой библиотеки сейчас не даёт достаточной выгоды.
-
-Что проверить позже перед возможной заменой:
-
-- активность поддержки библиотеки;
-- прозрачность security model;
-- поддержка `auth_date` freshness;
-- поддержка third-party/public-key validation path.
-
-Канонические источники:
-
-- Telegram Mini Apps auth docs: https://core.telegram.org/bots/webapps
-- Telegram Mini Apps init data docs: https://docs.telegram-mini-apps.com/platform/init-data
-
-### Website Telegram login
-
-Выбранный путь для website auth — официальный Telegram OIDC flow через `Authlib`.
+Оставляем текущую backend-валидацию `initData` в коде проекта.
 
 Причины:
 
-- Telegram официально поддерживает OIDC Authorization Code Flow с PKCE;
-- это надёжнее и поддерживаемее, чем самописный website login протокол;
-- OIDC лучше отделяет website auth от бизнес-логики payments/jobs.
+- поток уже рабочий и тестами покрыт;
+- он не требует отдельного auth broker;
+- текущая схема хорошо отделяет auth от business logic.
 
-Почему выбран `Authlib`:
+### Website
 
-- официальная документация Authlib покрывает Starlette/FastAPI OAuth/OIDC client flow;
-- библиотека хорошо ложится на текущий `FastAPI + httpx` стек;
-- можно валидировать Telegram `id_token` server-side и не строить самописный website auth протокол.
+Для website используем текущий Telegram Login library flow:
 
-Что обязательно должно поддерживаться выбранной библиотекой:
+- frontend получает `client_id` и server-generated `nonce`;
+- Telegram возвращает `id_token`;
+- backend валидирует `iss`, `aud`, `exp`, `iat`, `nonce`;
+- backend выдаёт свой short-lived bearer token;
+- bearer хранится в `sessionStorage` и используется для website requests.
 
-- OIDC discovery;
-- code exchange;
-- JWKS fetching;
-- ID token verification;
-- validation claims: `iss`, `aud`, `exp`, `iat`, `nonce`;
-- интеграция с FastAPI/ASGI без тяжёлой внешней auth-платформы.
+Официальные источники:
 
-Канонический источник:
+- [Telegram Login / OIDC](https://core.telegram.org/bots/telegram-login)
+- [Telegram Mini Apps auth](https://core.telegram.org/bots/webapps)
 
-- Telegram Login / OIDC docs: https://core.telegram.org/bots/telegram-login
+## Why not OIDC yet
 
-## Current rollout decision
+OIDC Authorization Code Flow с `client_secret` сейчас не нужен.
 
-1. Сейчас централизуем Mini App/dev fallback auth boundary на текущем стеке.
-2. Website Telegram login использует официальную Telegram Login JS library:
-   - frontend получает server-generated `nonce` и публичный `client_id` от backend;
-   - Telegram возвращает `id_token` только в callback библиотеки;
-   - backend валидирует подпись и claims, затем выдаёт собственный short-lived bearer token;
-   - bearer хранится в browser `sessionStorage`, не передаётся в URL и не сохраняется между вкладками.
-3. `TELEGRAM_LOGIN_CLIENT_SECRET` зарезервирован для будущего Authorization Code Flow. Он не нужен текущей JS library и никогда не передаётся во frontend.
-4. Полный authorization-code redirect flow имеет смысл добавлять вместе с website-domain/cookie strategy, если понадобится server-side session или сторонний identity broker.
+Минусы OIDC для текущего этапа:
+
+- больше интеграционной сложности;
+- нужен redirect/callback UX вместо простого login callback;
+- вероятнее придётся менять session/cookie strategy;
+- добавляется лишний слой, который не улучшает текущий website flow с точки зрения продукта.
+
+## Current Trade-offs
+
+Telegram Login library flow имеет ограничения:
+
+- он завязан на browser-side popup/callback UX;
+- может конфликтовать с `Cross-Origin-Opener-Policy: same-origin`;
+- хуже подходит для server-side sessions и SSO/broker сценариев;
+- менее универсален, чем полный OIDC redirect flow.
+
+Для Dream Wheels AI это приемлемо сейчас, потому что:
+
+- website login уже работает;
+- backend проверяет токен и claims;
+- auth boundary уже отделен от payments/jobs;
+- `TELEGRAM_LOGIN_CLIENT_SECRET` можно держать зарезервированным до момента, когда появится реальная потребность в OIDC.
+
+## Revisit Triggers
+
+Пересматриваем решение и переходим на OIDC, если появится хотя бы один из сценариев:
+
+- нужна server-side session/cookie strategy;
+- нужен единый auth broker или SSO;
+- нужно убрать popup/callback зависимость;
+- нужен redirect-based website login flow;
+- требуется более жесткая интеграция нескольких веб-приложений.
+
+## Current Rollout
+
+1. Mini App auth остается на `initData` validation.
+2. Website auth остается на Telegram Login library callback flow.
+3. Backend выдаёт наш bearer token после успешной валидации `id_token`.
+4. OIDC остается опцией на будущее, не текущим обязательным шагом.

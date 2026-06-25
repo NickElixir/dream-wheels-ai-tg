@@ -1,3 +1,6 @@
+import asyncio
+from types import SimpleNamespace
+
 import pytest
 from fastapi import HTTPException
 
@@ -99,3 +102,94 @@ def test_resolve_telegram_auth_accepts_bearer_token(monkeypatch):
     assert resolved.telegram_user_id == 123456789
     assert resolved.username == "site-user"
     assert resolved.auth_channel == "website"
+
+
+def test_verify_telegram_login_id_token_accepts_valid_claims(monkeypatch):
+    monkeypatch.setattr(auth, "TELEGRAM_LOGIN_CLIENT_ID", "123456789")
+    monkeypatch.setattr(auth, "TELEGRAM_LOGIN_ISSUER", "https://oauth.telegram.org")
+    monkeypatch.setattr(auth, "TELEGRAM_AUTH_TOKEN_SECRET", "test-secret")
+    monkeypatch.setattr(auth.time, "time", lambda: 1_700_000_000)
+
+    nonce = auth.build_website_login_nonce()
+    claims = {
+        "iss": "https://oauth.telegram.org",
+        "aud": "123456789",
+        "exp": 1_700_003_600,
+        "iat": 1_700_000_000,
+        "nonce": nonce["nonce"],
+        "id": 987654321,
+        "preferred_username": "dw-user",
+    }
+
+    async def fake_get_telegram_jwks():
+        return SimpleNamespace()
+
+    def fake_decode(_id_token, _key_set, algorithms):
+        assert algorithms == ["RS256"]
+        return SimpleNamespace(claims=claims)
+
+    monkeypatch.setattr(auth, "_get_telegram_jwks", fake_get_telegram_jwks)
+    monkeypatch.setattr(auth.jwt, "decode", fake_decode)
+
+    async def run_case():
+        return await auth.verify_telegram_login_id_token(
+            id_token="telegram-id-token",
+            nonce_token=nonce["nonce_token"],
+        )
+
+    resolved = asyncio.run(run_case())
+
+    assert resolved.telegram_user_id == 987654321
+    assert resolved.username == "dw-user"
+    assert resolved.auth_channel == "website"
+    assert resolved.auth_date == 1_700_000_000
+
+
+@pytest.mark.parametrize(
+    ("mutate_claims", "expected_error"),
+    [
+        (lambda claims: claims.__setitem__("iss", "https://evil.example"), "Invalid Telegram issuer"),
+        (lambda claims: claims.__setitem__("aud", "wrong"), "Invalid Telegram audience"),
+        (lambda claims: claims.__setitem__("exp", 1_699_999_999), "Expired Telegram id_token"),
+        (lambda claims: claims.__setitem__("nonce", "wrong-nonce"), "Nonce mismatch"),
+    ],
+)
+def test_verify_telegram_login_id_token_rejects_bad_claims(
+    monkeypatch,
+    mutate_claims,
+    expected_error,
+):
+    monkeypatch.setattr(auth, "TELEGRAM_LOGIN_CLIENT_ID", "123456789")
+    monkeypatch.setattr(auth, "TELEGRAM_LOGIN_ISSUER", "https://oauth.telegram.org")
+    monkeypatch.setattr(auth, "TELEGRAM_AUTH_TOKEN_SECRET", "test-secret")
+    monkeypatch.setattr(auth.time, "time", lambda: 1_700_000_000)
+
+    nonce = auth.build_website_login_nonce()
+    claims = {
+        "iss": "https://oauth.telegram.org",
+        "aud": "123456789",
+        "exp": 1_700_003_600,
+        "iat": 1_700_000_000,
+        "nonce": nonce["nonce"],
+        "id": 987654321,
+    }
+    mutate_claims(claims)
+
+    async def fake_get_telegram_jwks():
+        return SimpleNamespace()
+
+    def fake_decode(_id_token, _key_set, algorithms):
+        assert algorithms == ["RS256"]
+        return SimpleNamespace(claims=claims)
+
+    monkeypatch.setattr(auth, "_get_telegram_jwks", fake_get_telegram_jwks)
+    monkeypatch.setattr(auth.jwt, "decode", fake_decode)
+
+    async def run_case():
+        return await auth.verify_telegram_login_id_token(
+            id_token="telegram-id-token",
+            nonce_token=nonce["nonce_token"],
+        )
+
+    with pytest.raises(auth.WebsiteAuthInvalid, match=expected_error):
+        asyncio.run(run_case())

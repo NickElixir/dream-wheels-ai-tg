@@ -5,8 +5,11 @@
 роутинг и Pydantic-валидацию.
 """
 
+import io
+
 from fastapi.testclient import TestClient
 
+from src import auth, jobs_api, redis_client
 from src.config import WEBAPP_URL
 from src.main import app
 
@@ -115,3 +118,71 @@ def test_cors_allows_configured_webapp_origin():
     )
     assert r.status_code == 200
     assert r.headers["access-control-allow-origin"] == WEBAPP_URL
+
+
+def test_upload_invalid_mime_does_not_reserve_idempotency_key(monkeypatch):
+    class FakeRedis:
+        def __init__(self) -> None:
+            self.set_calls = 0
+
+        async def set(self, *_args, **_kwargs):
+            self.set_calls += 1
+            return True
+
+        async def get(self, *_args, **_kwargs):
+            return None
+
+    async def fake_enforce_rate_limit(**_kwargs):
+        return None
+
+    fake_redis = FakeRedis()
+    monkeypatch.setattr(
+        jobs_api,
+        "resolve_telegram_auth",
+        lambda **_kwargs: auth.AuthContext(
+            telegram_user_id=123456789,
+            username="dw-user",
+            auth_channel="website",
+            auth_date=1700000000,
+        ),
+    )
+    monkeypatch.setattr(jobs_api, "enforce_rate_limit", fake_enforce_rate_limit)
+    monkeypatch.setattr(jobs_api, "_get_render_queue_client", lambda *_args, **_kwargs: fake_redis)
+
+    response = client.post(
+        "/jobs/upload",
+        data={"idempotency_key": "mime-check", "init_data": "unused"},
+        files={
+            "car_image": ("car.gif", io.BytesIO(b"gif"), "image/gif"),
+            "wheel_image": ("wheel.jpg", io.BytesIO(b"jpg"), "image/jpeg"),
+        },
+    )
+
+    assert response.status_code == 415
+    assert fake_redis.set_calls == 0
+
+
+def test_health_full_reports_redis_disabled_when_client_not_initialized(monkeypatch):
+    class FakeConn:
+        async def fetchval(self, query: str):
+            assert query == "SELECT 1"
+            return 1
+
+    class FakeAcquire:
+        async def __aenter__(self):
+            return FakeConn()
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+    class FakePool:
+        def acquire(self):
+            return FakeAcquire()
+
+    monkeypatch.setattr("src.main.db.get_pool", lambda: FakePool())
+    monkeypatch.setattr(redis_client, "is_initialized", lambda: False)
+
+    response = client.get("/health/full")
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok", "db": "alive", "redis": "disabled"}

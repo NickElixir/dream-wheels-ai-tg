@@ -189,8 +189,11 @@ async def health_check_full():
     try:
         async with db.get_pool().acquire() as conn:
             await conn.fetchval("SELECT 1")
-        await redis_client.get_client().ping()
-        return {"status": "ok", "db": "alive", "redis": "alive"}
+        redis_status = "disabled"
+        if redis_client.is_initialized():
+            await redis_client.get_client().ping()
+            redis_status = "alive"
+        return {"status": "ok", "db": "alive", "redis": redis_status}
     except Exception as exc:
         logger.exception(f"❌ /health/full failed: {exc}")
         raise HTTPException(status_code=503, detail=f"unhealthy: {exc}") from exc

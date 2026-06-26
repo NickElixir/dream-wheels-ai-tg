@@ -290,19 +290,6 @@ async def upload_job(
         window_sec=UPLOAD_RATE_WINDOW_SEC,
     )
 
-    idem_redis_key = redis_client.key(f"idem:jobs_upload:{auth.telegram_user_id}:{idempotency_key}")
-    job_id = str(uuid.uuid4())
-    reserved = await rds.set(idem_redis_key, job_id, ex=IDEMPOTENCY_TTL_SEC, nx=True)
-    if not reserved:
-        existing_job_id = await rds.get(idem_redis_key)
-        if not existing_job_id:
-            raise HTTPException(status_code=409, detail="Upload retry in progress")
-        logger.info(
-            f"♻️  Idempotent replay: tg_user={auth.telegram_user_id} "
-            f"key={idempotency_key} → job={existing_job_id}"
-        )
-        return JobCreateResponse(job_id=existing_job_id, status="queued")
-
     for upload, label in ((car_image, "car"), (wheel_image, "wheel")):
         if upload.content_type not in ALLOWED_UPLOAD_MIME:
             raise HTTPException(
@@ -320,6 +307,19 @@ async def upload_job(
             )
         if len(data) == 0:
             raise HTTPException(status_code=400, detail=f"{label}: пустой файл")
+
+    idem_redis_key = redis_client.key(f"idem:jobs_upload:{auth.telegram_user_id}:{idempotency_key}")
+    job_id = str(uuid.uuid4())
+    reserved = await rds.set(idem_redis_key, job_id, ex=IDEMPOTENCY_TTL_SEC, nx=True)
+    if not reserved:
+        existing_job_id = await rds.get(idem_redis_key)
+        if not existing_job_id:
+            raise HTTPException(status_code=409, detail="Upload retry in progress")
+        logger.info(
+            f"♻️  Idempotent replay: tg_user={auth.telegram_user_id} "
+            f"key={idempotency_key} → job={existing_job_id}"
+        )
+        return JobCreateResponse(job_id=existing_job_id, status="queued")
 
     logger.info(
         f"📥 /jobs/upload tg_user={auth.telegram_user_id} job={job_id} "

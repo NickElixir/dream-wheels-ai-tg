@@ -20,7 +20,7 @@ Use this skill for Robokassa and credit-balance changes.
 - `tests/test_payments_mvp.py`
 - `tests/test_payments_switch.py`
 - `migrations/README.md`
-- Relevant migrations: `0004_preorders_robokassa.sql`, `0005_credit_topups_ledger.sql`, `0006_nullable_preorder_email.sql`, `0006_payments_mvp.sql`, `0009_staging_credit_ledger_conflict_compat.sql`, `0010_credit_ledger_idempotency_backfill.sql`
+- Relevant migrations: `0006_preorders_robokassa.sql`, `0007_credit_topups_ledger.sql`, `0008_nullable_preorder_email.sql`, `0009_payments_mvp.sql`, `0010_staging_credit_ledger_conflict_compat.sql`, `0011_credit_ledger_idempotency_backfill.sql`
 
 Load references only when needed:
 

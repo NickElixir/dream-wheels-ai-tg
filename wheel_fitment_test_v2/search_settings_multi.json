@@ -1,0 +1,37 @@
+{
+  "car": {
+    "make": "Exeed",
+    "model": "LX",
+    "year": 2024,
+    "region": "russia"
+  },
+  "wheels": [
+    {
+      "label": "wrong_bolt_pattern",
+      "diameter": 18,
+      "width": 7.0,
+      "offset": 40,
+      "bolt_pattern": "5x114.3",
+      "pcd": 114.3,
+      "center_bore": 60.1
+    },
+    {
+      "label": "exact_fit_candidate",
+      "diameter": 18,
+      "width": 7.0,
+      "offset": 40,
+      "bolt_pattern": "5x108",
+      "pcd": 108.0,
+      "center_bore": 60.1
+    },
+    {
+      "label": "size_not_approved_candidate",
+      "diameter": 20,
+      "width": 10.0,
+      "offset": 15,
+      "bolt_pattern": "5x108",
+      "pcd": 108.0,
+      "center_bore": 60.1
+    }
+  ]
+}

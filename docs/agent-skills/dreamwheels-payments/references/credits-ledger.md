@@ -13,8 +13,8 @@
 - `src/credits_service.py`: credit balance operations and ledger writes.
 - `src/payments_service.py`: payment state transitions and top-up orchestration.
 - `src/payments_api.py`: HTTP boundary for payment initiation/callbacks.
-- `migrations/0005_credit_topups_ledger.sql`: initial top-up and ledger model.
-- `migrations/0010_credit_ledger_idempotency_backfill.sql`: idempotency hardening.
+- `migrations/0007_credit_topups_ledger.sql`: initial top-up and ledger model.
+- `migrations/0011_credit_ledger_idempotency_backfill.sql`: idempotency hardening.
 
 ## Review Points
 

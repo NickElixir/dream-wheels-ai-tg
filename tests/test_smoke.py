@@ -74,6 +74,22 @@ def test_topup_requires_init_data_when_dev_auth_disabled():
     assert r.json()["detail"] == "initData required"
 
 
+def test_feedback_rejects_invalid_vote_before_db():
+    r = client.post(
+        "/jobs/00000000-0000-4000-8000-000000000000/feedback",
+        json={"vote": "meh"},
+    )
+    assert r.status_code == 422
+
+
+def test_bot_feedback_requires_internal_auth_when_no_init_data():
+    r = client.post(
+        "/jobs/00000000-0000-4000-8000-000000000000/feedback",
+        json={"vote": "like", "telegram_user_id": 1},
+    )
+    assert r.status_code in (401, 503)
+
+
 def test_robokassa_result_accepts_get_method():
     """ResultURL в кабинете Robokassa может быть настроен как GET."""
     r = client.get("/payments/robokassa/result")

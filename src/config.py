@@ -12,6 +12,8 @@ from urllib.parse import urlparse
 # Storage
 DATABASE_URL = os.getenv("DATABASE_URL")
 REDIS_URL = os.getenv("REDIS_URL")
+REDIS_KEY_PREFIX = os.getenv("REDIS_KEY_PREFIX", "")
+REDIS_JOB_QUEUE = os.getenv("REDIS_JOB_QUEUE", "job_queue")
 WORKER_ENABLED = os.getenv("WORKER_ENABLED", "true").lower() == "true"
 
 # External APIs

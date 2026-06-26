@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from src import auth_api, db, jobs_api, payments_api, redis_client, share_api, storage
-from src.config import WEBAPP_URL, WORKER_ENABLED, runtime_env_summary
+from src.config import REDIS_JOB_QUEUE, REDIS_URL, WEBAPP_URL, WORKER_ENABLED, runtime_env_summary
 from src.credits_service import finalize_job_credit, refund_job_credit
 from src.reve_client import fetch_image_base64, remix_wheels_on_car
 
@@ -35,9 +35,18 @@ async def lifespan(app: FastAPI):
 
     logger.info("🟢 Runtime env summary: %s", runtime_env_summary())
     await db.init_pool()
-    if WORKER_ENABLED:
+    if REDIS_URL:
         redis_client.init_client()
+        logger.info("🟢 Redis client initialized")
+    elif WORKER_ENABLED:
+        logger.warning("⚠️ WORKER_ENABLED=true, но REDIS_URL не задан: worker не запущен")
+    else:
+        logger.info("🟢 Redis отключён: API-only режим без очереди рендеров")
+
+    if WORKER_ENABLED and REDIS_URL:
         worker_task = asyncio.create_task(process_jobs_loop())
+    elif WORKER_ENABLED:
+        logger.warning("⚠️ Redis отсутствует: worker loop не запущен")
     else:
         logger.info("🟢 ВОРКЕР ОТКЛЮЧЕН (WORKER_ENABLED=false)")
 
@@ -46,7 +55,7 @@ async def lifespan(app: FastAPI):
     if worker_task:
         worker_task.cancel()
     await db.close_pool()
-    if WORKER_ENABLED:
+    if redis_client.is_initialized():
         await redis_client.close_client()
 
 
@@ -110,7 +119,7 @@ async def process_jobs_loop():
         job_id = None
         job_data = None
         try:
-            result = await rds.blpop("job_queue", timeout=10)
+            result = await rds.blpop(redis_client.key(REDIS_JOB_QUEUE), timeout=10)
             if not result:
                 continue
 

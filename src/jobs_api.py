@@ -18,7 +18,7 @@ from pydantic import BaseModel, field_validator
 
 from src import db, redis_client, storage
 from src.auth import resolve_telegram_auth
-from src.config import API_INTERNAL_TOKEN
+from src.config import API_INTERNAL_TOKEN, REDIS_JOB_QUEUE, WORKER_ENABLED
 from src.credits_service import InsufficientCreditsError, refund_job_credit, reserve_job_credit
 from src.rate_limit import enforce_rate_limit
 from src.share_api import share_url_for_job
@@ -44,6 +44,24 @@ ALLOWED_UPLOAD_MIME = {"image/jpeg", "image/jpg", "image/png", "image/webp"}
 # Идемпотентность: ключ живёт 1 час. Юзер с ретраем (плохой коннект)
 # получит тот же job_id вместо дубля рендера.
 IDEMPOTENCY_TTL_SEC = 60 * 60
+
+
+def _get_render_queue_client(endpoint: str, telegram_user_id: int):
+    if not WORKER_ENABLED:
+        logger.warning(
+            "⛔ Render queue disabled: endpoint=%s tg_user=%s", endpoint, telegram_user_id
+        )
+        raise HTTPException(status_code=503, detail="Render worker disabled")
+    try:
+        return redis_client.get_client()
+    except RuntimeError as exc:
+        logger.exception(
+            "❌ Render queue unavailable: endpoint=%s tg_user=%s: %s",
+            endpoint,
+            telegram_user_id,
+            exc,
+        )
+        raise HTTPException(status_code=503, detail="Render queue unavailable") from exc
 
 
 class JobCreateRequest(BaseModel):
@@ -163,6 +181,7 @@ async def _compensate_queue_publish_failure(
 @router.post("", response_model=JobCreateResponse)
 async def create_job(request: JobCreateRequest):
     """Создание задачи из бота — приходят Telegram file URL'ы."""
+    rds = _get_render_queue_client("/jobs", request.telegram_user_id)
     await enforce_rate_limit(
         scope="jobs",
         identifier=request.telegram_user_id,
@@ -175,7 +194,6 @@ async def create_job(request: JobCreateRequest):
     )
     job_id = str(uuid.uuid4())
     pool = db.get_pool()
-    rds = redis_client.get_client()
 
     try:
         async with pool.acquire() as conn:
@@ -208,7 +226,7 @@ async def create_job(request: JobCreateRequest):
 
     try:
         await rds.rpush(
-            "job_queue",
+            redis_client.key(REDIS_JOB_QUEUE),
             json.dumps(
                 {
                     "job_id": job_id,
@@ -264,6 +282,7 @@ async def upload_job(
         auth_name="jobs upload",
     )
 
+    rds = _get_render_queue_client("/jobs/upload", auth.telegram_user_id)
     await enforce_rate_limit(
         scope="jobs_upload",
         identifier=auth.telegram_user_id,
@@ -271,10 +290,13 @@ async def upload_job(
         window_sec=UPLOAD_RATE_WINDOW_SEC,
     )
 
-    rds = redis_client.get_client()
-    idem_redis_key = f"idem:jobs_upload:{auth.telegram_user_id}:{idempotency_key}"
-    existing_job_id = await rds.get(idem_redis_key)
-    if existing_job_id:
+    idem_redis_key = redis_client.key(f"idem:jobs_upload:{auth.telegram_user_id}:{idempotency_key}")
+    job_id = str(uuid.uuid4())
+    reserved = await rds.set(idem_redis_key, job_id, ex=IDEMPOTENCY_TTL_SEC, nx=True)
+    if not reserved:
+        existing_job_id = await rds.get(idem_redis_key)
+        if not existing_job_id:
+            raise HTTPException(status_code=409, detail="Upload retry in progress")
         logger.info(
             f"♻️  Idempotent replay: tg_user={auth.telegram_user_id} "
             f"key={idempotency_key} → job={existing_job_id}"
@@ -299,7 +321,6 @@ async def upload_job(
         if len(data) == 0:
             raise HTTPException(status_code=400, detail=f"{label}: пустой файл")
 
-    job_id = str(uuid.uuid4())
     logger.info(
         f"📥 /jobs/upload tg_user={auth.telegram_user_id} job={job_id} "
         f"car={len(car_bytes)}B wheel={len(wheel_bytes)}B"
@@ -319,6 +340,7 @@ async def upload_job(
             content_type=wheel_image.content_type,
         )
     except storage.StorageError as exc:
+        await rds.delete(idem_redis_key)
         logger.exception(f"❌ Storage upload failed для job_id={job_id}: {exc}")
         raise HTTPException(status_code=502, detail="Storage upload failed") from exc
 
@@ -340,15 +362,17 @@ async def upload_job(
                 await reserve_job_credit(conn, user_id=user_id, job_id=job_id)
         logger.info(f"✅ Job {job_id} создан в БД (queued)")
     except InsufficientCreditsError as exc:
+        await rds.delete(idem_redis_key)
         logger.warning(f"❌ Недостаточно credits для tg_user={auth.telegram_user_id}: {exc}")
         raise HTTPException(status_code=402, detail="Insufficient credits") from exc
     except Exception as db_err:
+        await rds.delete(idem_redis_key)
         logger.exception(f"❌ DB INSERT failed для job_id={job_id}: {db_err}")
         raise HTTPException(status_code=500, detail="Database insert failed") from db_err
 
     try:
         await rds.rpush(
-            "job_queue",
+            redis_client.key(REDIS_JOB_QUEUE),
             json.dumps(
                 {
                     "job_id": job_id,
@@ -374,11 +398,10 @@ async def upload_job(
             job_id=job_id,
             error_message="Queue publish failed",
         )
+        await rds.delete(idem_redis_key)
         raise HTTPException(
             status_code=503, detail="Job queue is temporarily unavailable"
         ) from queue_err
-
-    await rds.set(idem_redis_key, job_id, ex=IDEMPOTENCY_TTL_SEC)
 
     return JobCreateResponse(job_id=job_id, status="queued")
 

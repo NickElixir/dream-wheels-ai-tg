@@ -4,9 +4,16 @@ import logging
 import aiohttp
 import redis.asyncio as redis
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update, WebAppInfo
-from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
+from telegram.ext import (
+    Application,
+    CallbackQueryHandler,
+    CommandHandler,
+    ContextTypes,
+    MessageHandler,
+    filters,
+)
 
-from src.config import API_BASE_URL, BOT_TOKEN, REDIS_URL, WEBAPP_URL
+from src.config import API_BASE_URL, API_INTERNAL_TOKEN, BOT_TOKEN, REDIS_URL, WEBAPP_URL
 
 logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -31,6 +38,23 @@ def _get_redis() -> redis.Redis:
 SESSION_TTL_SEC = 600
 POLL_INTERVAL_SEC = 3
 POLL_MAX_RETRIES = 60  # 60 * 3 = 3 минуты ожидания результата
+
+FEEDBACK_KEYBOARD = {
+    "en": {
+        "like": "👍 Like",
+        "dislike": "👎 Dislike",
+        "voted_like": "✅ 👍 Liked",
+        "voted_dislike": "✅ 👎 Disliked",
+        "failed": "Could not save feedback. Please try again.",
+    },
+    "ru": {
+        "like": "👍 Нравится",
+        "dislike": "👎 Не нравится",
+        "voted_like": "✅ 👍 Понравилось",
+        "voted_dislike": "✅ 👎 Не понравилось",
+        "failed": "Не удалось сохранить оценку. Попробуйте ещё раз.",
+    },
+}
 
 MESSAGES = {
     "en": {
@@ -107,7 +131,13 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     status_msg = await update.message.reply_text(_t(update, "creating_job"))
 
     async with aiohttp.ClientSession() as session:
-        payload = {"telegram_user_id": user_id, "car_url": cached_car_url, "wheel_url": wheel_url}
+        username = update.effective_user.username if update.effective_user else None
+        payload = {
+            "telegram_user_id": user_id,
+            "username": username,
+            "car_url": cached_car_url,
+            "wheel_url": wheel_url,
+        }
         try:
             async with session.post(f"{API_BASE_URL}/jobs", json=payload) as resp:
                 if resp.status != 200:
@@ -135,9 +165,25 @@ async def poll_job_status(update: Update, status_msg, job_id: str):
                         status = data["status"]
 
                         if status == "completed":
+                            lang = _locale(update)
+                            fb = FEEDBACK_KEYBOARD[lang]
+                            feedback_markup = InlineKeyboardMarkup(
+                                [
+                                    [
+                                        InlineKeyboardButton(
+                                            fb["like"], callback_data=f"feedback:like:{job_id}"
+                                        ),
+                                        InlineKeyboardButton(
+                                            fb["dislike"],
+                                            callback_data=f"feedback:dislike:{job_id}",
+                                        ),
+                                    ]
+                                ]
+                            )
                             await update.message.reply_photo(
                                 photo=data["output_image_url"],
                                 caption=_t(update, "done_caption"),
+                                reply_markup=feedback_markup,
                             )
                             await status_msg.delete()
                             return
@@ -153,11 +199,66 @@ async def poll_job_status(update: Update, status_msg, job_id: str):
     await status_msg.edit_text(_t(update, "timeout"))
 
 
+async def handle_feedback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+
+    parts = (query.data or "").split(":")
+    if len(parts) != 3 or parts[0] != "feedback":
+        await query.answer()
+        return
+    _, vote, job_id = parts
+
+    lang = _locale(update)
+    fb = FEEDBACK_KEYBOARD[lang]
+    telegram_user_id = query.from_user.id if query.from_user else None
+    if telegram_user_id is None:
+        await query.answer(fb["failed"], show_alert=True)
+        return
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            headers = {}
+            if API_INTERNAL_TOKEN:
+                headers["X-Internal-Token"] = API_INTERNAL_TOKEN
+            async with session.post(
+                f"{API_BASE_URL}/jobs/{job_id}/feedback",
+                json={"vote": vote, "telegram_user_id": telegram_user_id},
+                headers=headers,
+            ) as resp:
+                if resp.status != 204:
+                    body = await resp.text()
+                    logger.warning(
+                        "Feedback API rejected job_id=%s tg_user=%s status=%s body=%s",
+                        job_id,
+                        telegram_user_id,
+                        resp.status,
+                        body[:500],
+                    )
+                    await query.answer(fb["failed"], show_alert=True)
+                    return
+    except Exception as e:
+        logger.exception(f"Ошибка отправки feedback job_id={job_id}: {e}")
+        await query.answer(fb["failed"], show_alert=True)
+        return
+
+    voted_label = fb["voted_like"] if vote == "like" else fb["voted_dislike"]
+    try:
+        await query.answer()
+        await query.edit_message_reply_markup(
+            reply_markup=InlineKeyboardMarkup(
+                [[InlineKeyboardButton(voted_label, callback_data="noop")]]
+            )
+        )
+    except Exception:
+        pass
+
+
 def main():
     logger.info("Запуск Telegram-бота...")
     application = Application.builder().token(BOT_TOKEN).build()
     application.add_handler(CommandHandler("start", start))
     application.add_handler(MessageHandler(filters.PHOTO, handle_photo))
+    application.add_handler(CallbackQueryHandler(handle_feedback, pattern=r"^feedback:"))
     application.run_polling()
 
 

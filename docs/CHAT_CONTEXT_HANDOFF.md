@@ -1,126 +1,49 @@
-# Контекст проекта Dream Wheels AI — для передачи в Claude Desktop
+# Dream Wheels AI — repository guide for AI assistants
 
-## Кто пользователь
+## Product
 
-**Николай Луценко** — Python Backend Developer (4+ года прод-опыт), магистр Сколтеха (Engineering Systems / AI in Robotics).
+Dream Wheels AI is a Telegram Mini App and bot for virtual wheel fitting. A user supplies a car image and a rim image, receives a generated visual fitment, and will progressively receive a separate preliminary technical compatibility assessment.
 
-**Прод-опыт релевантный проекту:**
-- НМИЦ Блохина (2025): FastAPI + PostgreSQL + Redis микросервисы, JWT, RBAC, Repository pattern
-- Дрим Холдинг (2021–2025): Python e-commerce backend, REST API, маркетплейсы
-- ML/Robotics: ROS2, OpenCV, YOLO, ONNX, edge на Raspberry Pi
+Never present a visual render as proof that a wheel fits technically.
 
-**Стиль общения:**
-- Русский язык, технический. НЕ объяснять основы Python/FastAPI/REST/JWT/ORM
-- Default — 3-7 предложений. Yes/no — одно предложение
-- Без жизненных аналогий, без trailing summary
-- DO объяснять: Render-quirks, Supabase pooler, Upstash, Telegram polling vs webhook
-- Watch: иногда спрашивает "что такое X?" чтобы проверить контекст проекта, не потому что не знает
+## Current architecture
 
-## Что за проект
+- Frontend: static Telegram WebApp in `webapp/`, deployed through Vercel.
+- Backend: Python 3.12, FastAPI, async I/O, worker loop.
+- Telegram: `python-telegram-bot` long polling.
+- Database and object storage: Supabase Postgres and Storage.
+- Queue, session cache, rate limits: Upstash Redis.
+- Hosting: Render.
+- Current image generation is behind an external provider adapter; do not spread provider-specific assumptions through routes or domain code.
 
-**Dream Wheels AI** — Telegram-бот для AI-примерки автомобильных дисков. Пользователь шлёт фото машины + фото диска → бот возвращает картинку машины с этими дисками через Reve API.
+The current WebApp target flow is documented in [architecture.md](architecture.md).
 
-**Стек:**
-- Python 3.12.2
-- FastAPI + Uvicorn (бэкенд)
-- python-telegram-bot 21 (бот, long polling)
-- PostgreSQL (Supabase, через asyncpg, pooler port 6543 + statement_cache_size=0)
-- Redis (Upstash, через redis-py async, для очереди задач + сессии бота)
-- Reve API (внешний AI image remix endpoint)
-- Hosting: Render Free tier (один Web Service запускает FastAPI + бота через `start.sh`)
+## Working rules
 
-**Архитектура (после рефакторинга):**
-```
-dream-wheels-ai-tg/
-├── src/
-│   ├── config.py        # все env vars в одном месте
-│   ├── db.py            # asyncpg pool init/close/get
-│   ├── redis_client.py  # redis async client
-│   ├── reve_client.py   # обёртка Reve API (fetch_image_base64, remix_wheels_on_car)
-│   ├── main.py          # FastAPI app + lifespan + worker loop
-│   └── bot.py           # Telegram bot (long polling, ленивый Redis)
-├── migrations/
-│   ├── 0001_initial.sql       # users + jobs + индексы
-│   └── 0002_enable_rls.sql    # RLS на public.*
-├── tests/
-│   └── test_smoke.py    # 3 теста (health, root, POST /jobs validation)
-├── docs/
-│   ├── TEAM_HANDOFF_CHECKLIST.md
-│   └── CHAT_CONTEXT_HANDOFF.md  # этот файл
-├── .github/
-│   ├── workflows/ci.yml         # ruff + pytest на PR
-│   ├── PULL_REQUEST_TEMPLATE.md
-│   └── ISSUE_TEMPLATE/
-├── pyproject.toml       # ruff config (line-length=100, py312)
-├── .pre-commit-config.yaml
-├── requirements.txt
-├── requirements-dev.txt # +pytest, httpx, ruff==0.4.2
-├── runtime.txt          # python-3.12.2
-├── start.sh             # uvicorn src.main:app + python -m src.bot
-└── CLAUDE.md            # инструкции для Claude Code
-```
+1. Read [CONTRIBUTING.md](../CONTRIBUTING.md) before code changes.
+2. Use feature branches and PRs; never push directly to `main`.
+3. Apply all DDL through ordered, idempotent migrations in `migrations/`.
+4. Use Pydantic at API boundaries, async for I/O, type hints on public functions, and `logger.exception` in exception handlers.
+5. Never log or commit secrets.
+6. Treat `jobs` as the current render-job aggregate; evolve it rather than duplicating lifecycle state.
 
-**Поток работы бота:**
-1. `/start` → "пришли фото машины"
-2. Юзер шлёт первое фото → URL сохраняется в Redis (`session:<user_id>:car_url`, TTL 600s)
-3. Юзер шлёт второе фото → бэкенд `POST /jobs` с обоими URL
-4. FastAPI создаёт запись в `jobs` (status=queued), пушит в Redis-очередь `job_queue`
-5. Воркер (asyncio.task в lifespan) забирает blpop, ставит status=processing
-6. Скачивает обе картинки → base64 → Reve API → бинарь → файл `static/res_<job_id>.jpg`
-7. Update jobs SET status=completed, output_image_url=...
-8. Бот polls `GET /jobs/{id}` каждые 3s до 3 минут → шлёт юзеру результат
+## Documentation map
 
-## Текущее состояние
+- [architecture.md](architecture.md) — current WebApp, worker and job flow.
+- [product-roadmap.md](product-roadmap.md) — delivery order and dependencies.
+- [data-model.md](data-model.md) — target durable data model.
+- [ai-rendering-pipeline.md](ai-rendering-pipeline.md) — production AI path and evaluation boundary.
+- [fitment-compatibility.md](fitment-compatibility.md) — compatibility engine and UX rules.
+- [fitment-provider-discovery.md](fitment-provider-discovery.md) — provider evaluation plan.
+- [payments-boundaries.md](payments-boundaries.md) — credits/payment scope.
+- [customer-development.md](customer-development.md) — research gates and metrics.
+- [adr/](adr/) — accepted architectural decisions.
 
-**Деплой:** работает на Render, последний деплой live на коммите `c008431`.
-**Бот:** @DreamWheelsAI_bot, активен (если не спит на Free spin-down 15 мин).
-**CI:** GitHub Actions зелёный (ruff + pytest).
+## Planned architecture constraints
 
-**Ветки:**
-- `main` — prod (Render auto-deploy), защищена branch protection (если настроена)
-- `dev` — интеграция, текущая активная ветка
-- `test` — staging для QA
-
-**Что сделано в последней сессии (Claude Code):**
-1. Рефакторинг плоского main.py/bot.py → модульная структура `src/`
-2. Создание FastAPI `lifespan` (вместо deprecated `@app.on_event`)
-3. Фикс Supabase pooler (`statement_cache_size=0`)
-4. Подавление httpx INFO-логов (текли BOT_TOKEN)
-5. Извлечение PUBLIC_BASE_URL в env
-6. Миграции БД в `migrations/`
-7. Smoke-тесты + venv + ruff + pre-commit
-8. GitHub Actions CI + PR/issue templates
-9. Ленивая инициализация Redis в bot.py (для проходимости тестов)
-
-## Известные проблемы / TODO
-
-**Безопасность:**
-- В чате утекали секреты (BOT_TOKEN, Supabase password, Redis password, Upstash API key, Render API key) — нужна ротация всех
-- Нет rate limiting на POST /jobs
-- Нет аутентификации на API endpoints
-
-**Архитектура:**
-- FastAPI и бот в одном процессе — при rolling deploy 30-60s Conflict от Telegram polling. Решение: разнести на 2 Render-сервиса (Starter план)
-- `static/` хранится на эфемерном диске Render (теряется при деплое) → нужен Supabase Storage
-- Render Free spin-down 15 мин убивает long-poll бота → upgrade до Starter $7/мес
-
-**Качество:**
-- Нет mypy / type checking в CI
-- Нет интеграционных тестов с реальной БД
-- README.md ещё не написан
-- Branch protection на main ещё не настроена
-
-## Ссылки
-
-- Repo: https://github.com/NickElixir/dream-wheels-ai-tg (приватный)
-- Render Service ID: `srv-d6u344fkijhs73ffnukg`
-- Supabase project ref: `qmgyccghsbdpehiybjae`
-- Render dashboard: https://dashboard.render.com/web/srv-d6u344fkijhs73ffnukg
-
-## Окружение разработчика
-
-- macOS Apple Silicon M1, Homebrew в `/opt/homebrew`
-- Python 3.12 через `/opt/homebrew/opt/python@3.12/bin/python3.12`
-- VS Code с Claude Code extension
-- `.venv` в проекте, активируется через `source .venv/bin/activate`
-- pre-commit включён (ruff format + check, trailing whitespace, private keys)
+- Original images, generated results and metadata must become durable; do not rely on browser state or ephemeral filesystem storage for history.
+- Vehicle recognition is a suggestion; the user confirms vehicle identity.
+- Rim SKU/URL/specifications are optional but higher-trust than OCR/VLM guesses.
+- Fitment decisions are deterministic over structured data; LLMs can extract or explain but cannot be the source of compatibility truth.
+- Input quality checks begin as warnings, not automatic rejection.
+- Internal retries do not consume additional credits.

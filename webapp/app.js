@@ -160,6 +160,7 @@ const I18N = {
             paymentHistory: "История платежей",
             paymentHistoryHint: "Скрыта по умолчанию",
             openHistory: "Открыть",
+            payAgain: "Оплатить еще раз",
             emptyHistory: "Платежей пока нет",
             noPaymentsTitle: "Платежей пока нет",
             noPaymentsMeta: "Первый подарок появится в истории платежей",
@@ -357,6 +358,7 @@ const I18N = {
             paymentHistory: "Payment history",
             paymentHistoryHint: "Collapsed by default",
             openHistory: "Open",
+            payAgain: "Pay again",
             emptyHistory: "No payments yet",
             noPaymentsTitle: "No payments yet",
             noPaymentsMeta: "The first gift will appear in payment history",
@@ -855,6 +857,7 @@ function setWalletBusy(busy) {
     document.querySelector("[data-pay-button]")?.toggleAttribute("disabled", busy);
     document.querySelector("[data-reset-wizard]")?.toggleAttribute("disabled", busy);
     document.querySelector("[data-refresh-invoice]")?.toggleAttribute("disabled", busy);
+    document.querySelector("[data-resume-invoice]")?.toggleAttribute("disabled", busy);
     document.querySelector("[data-topup-email]")?.toggleAttribute("disabled", busy);
     document.querySelectorAll("[data-topup-amount]").forEach((button) => {
         button.toggleAttribute("disabled", busy);
@@ -994,6 +997,7 @@ function renderWallet() {
     const statusPill = document.querySelector("[data-last-invoice-status]");
     const headingStatus = document.querySelector("[data-payment-status]");
     const refreshButton = document.querySelector("[data-refresh-invoice]");
+    const resumeButton = document.querySelector("[data-resume-invoice]");
 
     if (balanceValue) balanceValue.textContent = String(state.balance ?? "0");
     if (balanceNote) {
@@ -1010,6 +1014,7 @@ function renderWallet() {
             headingStatus.className = "status-pill neutral";
         }
         if (refreshButton) refreshButton.hidden = true;
+        if (resumeButton) resumeButton.hidden = true;
     } else {
         if (emptyBlock) emptyBlock.hidden = true;
         if (cardBlock) cardBlock.hidden = false;
@@ -1046,6 +1051,7 @@ function renderWallet() {
         document.querySelector("[data-last-invoice-number-copy]")?.replaceChildren(document.createTextNode(`#${String(lastInvoice.invoiceId).padStart(6, "0")}`));
         document.querySelector("[data-last-invoice-meta]")?.replaceChildren(document.createTextNode(lastInvoice.createdAt));
         if (refreshButton) refreshButton.hidden = lastInvoice.status !== "pending";
+        if (resumeButton) resumeButton.hidden = lastInvoice.status !== "pending" || !lastInvoice.confirmationUrl;
     }
 
     if (!history) return;
@@ -1185,6 +1191,7 @@ async function loadCabinet({ silent = false } = {}) {
             createdAtMs: Date.parse(payment.created_at),
             createdAt: new Date(payment.created_at).toLocaleString(locale === "ru" ? "ru-RU" : "en-US"),
             status: payment.status,
+            confirmationUrl: payment.confirmation_url || "",
         }));
         state.starterGrant = cabinet.starter_grant
             ? {
@@ -1280,6 +1287,20 @@ async function createPayment() {
     } finally {
         setWalletBusy(false);
     }
+}
+
+function resumeLastPayment() {
+    const lastInvoice = getLastInvoice();
+    if (!lastInvoice || lastInvoice.status !== "pending") {
+        setWalletMessage(t("wallet.pendingFresh"), "warning");
+        return;
+    }
+    if (!lastInvoice.confirmationUrl) {
+        setWalletMessage(t("wallet.pendingStale"), "warning");
+        return;
+    }
+    setWalletMessage(t("wallet.openingPayment"));
+    openPaymentUrl(lastInvoice.confirmationUrl);
 }
 
 function handlePaymentReturn() {
@@ -1884,6 +1905,7 @@ function bindEvents() {
         setWalletMessage(t("wallet.refreshingInvoice"), "neutral");
         void loadCabinet();
     });
+    document.querySelector("[data-resume-invoice]")?.addEventListener("click", resumeLastPayment);
     document.querySelector("[data-reset-wizard]")?.addEventListener("click", () => {
         state.paymentStep = 1;
         state.selectedAmount = 500;

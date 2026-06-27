@@ -205,7 +205,7 @@ async def list_payments_for_user(conn: asyncpg.Connection, *, user_id: int) -> l
     rows = await conn.fetch(
         """
         SELECT id, invoice_id, status, amount_rub, credits_granted, pricing_version,
-               receipt_email, provider_payment_id, created_at, paid_at, failed_at, updated_at
+               receipt_email, source_screen, provider_payment_id, created_at, paid_at, failed_at, updated_at
         FROM payments
         WHERE user_id = $1
         ORDER BY created_at DESC
@@ -213,7 +213,33 @@ async def list_payments_for_user(conn: asyncpg.Connection, *, user_id: int) -> l
         """,
         user_id,
     )
-    return [serialize_payment_row(row) for row in rows]
+    return [serialize_payment_row(row, confirmation_url=_confirmation_url_for_payment(row)) for row in rows]
+
+
+def _confirmation_url_for_payment(row: asyncpg.Record) -> str | None:
+    if row["status"] != PAYMENT_STATUS_PENDING:
+        return None
+    receipt_email = row["receipt_email"]
+    provider_payment_id = row["provider_payment_id"]
+    if not receipt_email or not provider_payment_id or row["amount_rub"] is None:
+        return None
+    try:
+        return build_payment_url(
+            invoice_id=int(row["invoice_id"]),
+            payment_id=str(provider_payment_id),
+            intent=TopUpIntent(
+                amount_rub=Decimal(str(row["amount_rub"])),
+                pricing_version=str(row["pricing_version"] or "credits-v1"),
+                source_screen=str(row["source_screen"] or "cabinet"),
+                receipt_email=str(receipt_email),
+            ),
+        )
+    except PaymentConfigError:
+        logger.warning(
+            "⚠️ Robokassa resume URL unavailable for invoice_id=%s",
+            row["invoice_id"],
+        )
+        return None
 
 
 async def get_starter_grant_for_user(
@@ -292,7 +318,7 @@ async def get_starter_grant_for_user(
     }
 
 
-def serialize_payment_row(row: asyncpg.Record) -> dict[str, Any]:
+def serialize_payment_row(row: asyncpg.Record, *, confirmation_url: str | None = None) -> dict[str, Any]:
     updated_at = row["paid_at"] or row["failed_at"] or row["updated_at"] or row["created_at"]
     return {
         "payment_id": str(row["id"]),
@@ -302,7 +328,7 @@ def serialize_payment_row(row: asyncpg.Record) -> dict[str, Any]:
         "credits_granted": int(row["credits_granted"]),
         "receipt_email": row["receipt_email"],
         "pricing_version": row["pricing_version"],
-        "confirmation_url": None,
+        "confirmation_url": confirmation_url,
         "created_at": row["created_at"].isoformat(),
         "updated_at": updated_at.isoformat() if updated_at else None,
         "paid_at": row["paid_at"].isoformat() if row["paid_at"] else None,
@@ -332,7 +358,7 @@ async def get_payment_status_by_invoice(
     )
     if row is None:
         raise PaymentNotFoundError(f"invoice_id={invoice_id} not found")
-    payload = serialize_payment_row(row)
+    payload = serialize_payment_row(row, confirmation_url=_confirmation_url_for_payment(row))
     payload["balance"] = int(row["balance"] or 0)
     return payload
 

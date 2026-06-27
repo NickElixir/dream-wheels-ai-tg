@@ -152,7 +152,10 @@
                         <div class="payment-card-title" data-last-invoice-number>#000000</div>
                         <div class="payment-card-meta" data-last-invoice-meta>Сегодня</div>
                     </div>
-                    <button type="button" class="payment-card-action" data-refresh-invoice hidden data-i18n="wallet.refreshInvoice">Обновить счет</button>
+                    <div class="payment-card-actions">
+                        <button type="button" class="payment-card-action payment-card-action-ghost" data-refresh-invoice hidden data-i18n="wallet.refreshInvoice">Обновить счет</button>
+                        <button type="button" class="payment-card-action payment-card-action-accent" data-resume-invoice hidden data-i18n="wallet.payAgain">Оплатить еще раз</button>
+                    </div>
                 </div>
                 <div class="invoice-card" data-last-invoice-details hidden>
                     <div class="invoice-row">

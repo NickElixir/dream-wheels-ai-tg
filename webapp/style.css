@@ -474,12 +474,12 @@ h2 {
     gap: 12px;
     align-items: center;
     margin: 0;
-    padding: 0 18px;
+    padding: 0 20px;
     border-radius: 20px;
     border: 1px solid rgba(255, 255, 255, 0.08);
     background: rgba(255, 255, 255, 0.03);
     overflow: hidden;
-    max-height: 112px;
+    max-height: 220px;
     opacity: 0;
     transform: translateY(-6px);
     transition:
@@ -493,7 +493,7 @@ h2 {
 }
 
 .wallet-status-island[data-visible="true"] {
-    padding: 16px 18px;
+    padding: 18px 20px;
     opacity: 1;
     transform: translateY(0);
 }
@@ -548,10 +548,11 @@ h2 {
 }
 
 .wallet-status-title {
-    font-size: 14px;
+    font-size: 15px;
     font-weight: 700;
-    line-height: 1.45;
+    line-height: 1.55;
     color: inherit;
+    overflow-wrap: anywhere;
 }
 
 @keyframes wallet-spin {
@@ -800,6 +801,26 @@ h2 {
 .payment-card-action:hover {
     border-color: rgba(221, 255, 0, 0.25);
     background: rgba(221, 255, 0, 0.07);
+}
+
+.payment-card-actions {
+    display: grid;
+    gap: 10px;
+    min-width: 0;
+}
+
+.payment-card-action-accent {
+    border-color: rgba(221, 255, 0, 0.3);
+    background: rgba(221, 255, 0, 0.1);
+    color: var(--accent-strong);
+}
+
+.payment-card-action-accent:hover {
+    background: rgba(221, 255, 0, 0.14);
+}
+
+.payment-card-action-ghost {
+    min-width: 0;
 }
 
 .topup-general-error {

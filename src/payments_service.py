@@ -18,6 +18,7 @@ from src.config import (
     ROBOKASSA_PAYMENT_URL,
     ROBOKASSA_TEST_PASSWORD1,
     ROBOKASSA_TEST_PASSWORD2,
+    STARTER_GRANT_CREDITS,
 )
 from src.credits_service import ensure_credit_account
 from src.payments.providers.robokassa import (
@@ -257,7 +258,34 @@ async def get_starter_grant_for_user(
         logger.warning("⚠️ credit_ledger lookup failed; starter grant history skipped")
         return None
     if row is None:
-        return None
+        try:
+            account_row = await conn.fetchrow(
+                """
+                SELECT trial_used_at, updated_at
+                FROM user_credit_accounts
+                WHERE user_id = $1
+                  AND trial_used_at IS NOT NULL
+                """,
+                user_id,
+            )
+        except asyncpg.UndefinedColumnError:
+            account_row = None
+        except asyncpg.PostgresError:
+            logger.warning(
+                "⚠️ user_credit_accounts fallback lookup failed; starter grant history skipped"
+            )
+            account_row = None
+
+        if account_row is None or STARTER_GRANT_CREDITS <= 0:
+            return None
+
+        created_at = account_row["trial_used_at"] or account_row["updated_at"]
+        if created_at is None:
+            return None
+        return {
+            "credits": STARTER_GRANT_CREDITS,
+            "created_at": created_at.isoformat(),
+        }
     return {
         "credits": int(row["credits_delta"]),
         "created_at": row["created_at"].isoformat(),

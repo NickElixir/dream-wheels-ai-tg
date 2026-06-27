@@ -147,6 +147,8 @@ const I18N = {
             customAmountLabel: "Своя сумма",
             emailLabel: "Email для чека",
             emailHint: "Используем его для чека и подтверждения оплаты",
+            emailRequired: "Заполните email для чека перед оплатой",
+            emailInvalid: "Укажите корректный email для чека",
             back: "Назад",
             nextToConfirm: "Продолжить",
             confirmAmount: "Сумма",
@@ -342,6 +344,8 @@ const I18N = {
             customAmountLabel: "Custom amount",
             emailLabel: "Receipt email",
             emailHint: "Used for the receipt and payment confirmation",
+            emailRequired: "Enter a receipt email before payment",
+            emailInvalid: "Enter a valid receipt email",
             back: "Back",
             nextToConfirm: "Continue",
             confirmAmount: "Amount",
@@ -863,6 +867,38 @@ function setWalletMessage(message, tone = "neutral") {
     feedback.className = `topup-general-error ${tone}`;
 }
 
+function setEmailError(message = "") {
+    const emailError = document.querySelector("[data-topup-email-error]");
+    const emailInput = document.querySelector("[data-topup-email]");
+    if (emailError) {
+        emailError.hidden = !message;
+        emailError.textContent = message;
+    }
+    if (emailInput) {
+        emailInput.setAttribute("aria-invalid", message ? "true" : "false");
+    }
+}
+
+function validateReceiptEmail() {
+    const normalized = String(state.email || "").trim().toLowerCase();
+    state.email = normalized;
+    syncEmailInput();
+
+    if (!normalized) {
+        setEmailError(t("wallet.emailRequired"));
+        return false;
+    }
+
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailPattern.test(normalized)) {
+        setEmailError(t("wallet.emailInvalid"));
+        return false;
+    }
+
+    setEmailError("");
+    return true;
+}
+
 function getLastInvoice() {
     return state.payments[0] || null;
 }
@@ -1182,6 +1218,10 @@ async function createPayment() {
         setWalletMessage(t("wallet.authRequired"), "warning");
         return;
     }
+    if (!validateReceiptEmail()) {
+        setWalletMessage("", "neutral");
+        return;
+    }
 
     setWalletBusy(true);
     setWalletMessage(t("wallet.openingPayment"));
@@ -1191,7 +1231,7 @@ async function createPayment() {
             headers: withAuthHeaders({ "Content-Type": "application/json" }),
             body: JSON.stringify({
                 amount_rub: normalizeTopUpAmount(state.selectedAmount).toFixed(2),
-                email: state.email || null,
+                email: state.email,
                 pricing_version: PRICING_VERSION,
                 source_screen: "cabinet",
                 ...identity,
@@ -1809,6 +1849,7 @@ function bindEvents() {
 
     document.querySelector("[data-topup-email]")?.addEventListener("input", (event) => {
         state.email = event.target.value.trim();
+        setEmailError("");
         renderConfirmation();
     });
 
@@ -1823,6 +1864,7 @@ function bindEvents() {
         state.email = "";
         const input = document.querySelector("[data-topup-email]");
         if (input) input.value = "";
+        setEmailError("");
         setSelectedAmount(state.selectedAmount);
         renderConfirmation();
         setWalletMessage("");

@@ -1,9 +1,8 @@
 -- Миграция 0003: RLS-политики для Storage bucket'ов raw и results.
 --
--- Зачем: bucket'ы созданы через Studio, но без явных RLS-политик
--- storage.objects блокирует все операции для anon/authenticated. Backend
--- использует service_role — он обходит RLS и работает в любом случае.
--- Эти политики нужны для двух вещей:
+-- Зачем: создаем bucket'ы и задаем явные RLS-политики. Backend использует
+-- service_role — он обходит RLS и работает в любом случае.
+-- Политики нужны для двух вещей:
 --   1. Public-чтение results bucket (картинки рендеров — открыты по URL).
 --   2. Документация intent: что мы хотим разрешить, на случай если
 --      кто-то поменяет ключ или подключит другой клиент.
@@ -12,9 +11,16 @@
 --   raw     — private,  10 MB, исходники car/wheel
 --   results — public,    5 MB, AI-рендеры
 --
--- ПРИМЕНЕНИЕ: запустить через Supabase SQL Editor (Studio → SQL).
--- Через psql/asyncpg не пройдёт — storage.objects живёт в схеме storage
--- к которой обычный DATABASE_URL может не иметь GRANT'ов.
+-- ПРИМЕНЕНИЕ: запустить через Supabase SQL Editor или Management API.
+
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES
+    ('raw', 'raw', false, 10485760, ARRAY['image/jpeg', 'image/png', 'image/webp']),
+    ('results', 'results', true, 5242880, ARRAY['image/jpeg', 'image/png', 'image/webp'])
+ON CONFLICT (id) DO UPDATE
+SET public = EXCLUDED.public,
+    file_size_limit = EXCLUDED.file_size_limit,
+    allowed_mime_types = EXCLUDED.allowed_mime_types;
 
 -- ---------------------------------------------------------------------
 -- raw (private): никто кроме service_role не пишет/читает.

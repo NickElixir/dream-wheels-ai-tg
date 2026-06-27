@@ -147,6 +147,7 @@ celerybeat.pid
 .claude/settings.local.json
 .claude/settings.json
 .claude/scheduled_tasks.lock
+.codex/
 env/
 venv/
 ENV/

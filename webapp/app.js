@@ -191,7 +191,8 @@ const I18N = {
             eyebrow: "Готовые работы",
             title: "История рендеров",
             lede: "Здесь видны последние сохраненные рендеры на этом устройстве.",
-            empty: "Готовых рендеров пока нет. Создайте первый на главном экране.",
+            empty: "Готовых рендеров пока нет.",
+            emptyHint: "Завершенные работы будут появляться здесь.",
             completed: "Готов",
             failed: "Ошибка",
         },
@@ -389,7 +390,8 @@ const I18N = {
             eyebrow: "Finished work",
             title: "Render history",
             lede: "Recent renders saved on this device.",
-            empty: "No renders yet. Create your first one on the main screen.",
+            empty: "No renders yet.",
+            emptyHint: "Finished renders will appear here.",
             completed: "Done",
             failed: "Failed",
         },
@@ -1125,11 +1127,12 @@ function renderRenders() {
     if (!container) return;
     if (!state.recentRenders.length) {
         container.innerHTML = `
-            <div class="history-card render-empty">
-                <div>
+            <div class="render-empty">
+                <div class="render-empty-copy">
                     <strong>${t("renders.empty")}</strong>
-                    <div class="meta">${state.apiBaseUrl}</div>
+                    <div class="meta">${t("renders.emptyHint")}</div>
                 </div>
+                <button type="button" class="primary-button render-empty-action" data-nav="create">${t("actions.createRender")}</button>
             </div>
         `;
         return;

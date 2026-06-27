@@ -1170,7 +1170,21 @@ h2 {
 }
 
 .render-empty {
-    justify-content: flex-start;
+    display: grid;
+    gap: 14px;
+    align-items: start;
+    justify-content: start;
+    min-height: 176px;
+}
+
+.render-empty-copy {
+    display: grid;
+    gap: 6px;
+    max-width: 36ch;
+}
+
+.render-empty-action {
+    justify-self: start;
 }
 
 .form-row,

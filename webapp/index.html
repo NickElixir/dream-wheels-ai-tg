@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="theme-color" content="#0a0b0e">
     <title>Dream Wheels AI</title>
-    <link rel="stylesheet" href="/style.css?v=20260625-2">
+    <link rel="stylesheet" href="/style.css?v=20260627-1">
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
@@ -191,7 +191,12 @@
                     </div>
                     <button type="button" class="ghost-button" data-reset-wizard data-i18n="wallet.reset">Сбросить</button>
                 </div>
-                <div class="topup-general-error" data-wallet-feedback hidden></div>
+                <div class="wallet-status-island wallet-status-loading" data-wallet-loading aria-live="polite" data-visible="false">
+                    <div class="wallet-status-spinner" aria-hidden="true"></div>
+                    <div class="wallet-status-copy">
+                        <div class="wallet-status-title" data-wallet-loading-text data-i18n="wallet.loading">Загружаем кабинет...</div>
+                    </div>
+                </div>
                 <div class="topup-wizard">
                     <div class="topup-island topup-step-island">
                         <div class="topup-step-head">
@@ -267,6 +272,11 @@
                             <div>
                                 <div class="topup-step-title" data-i18n="wallet.stepConfirm">Подтверждение</div>
                                 <div class="topup-step-sub" data-i18n="wallet.confirmHint">Проверьте пакет перед переходом в Robokassa</div>
+                            </div>
+                        </div>
+                        <div class="wallet-status-island" data-wallet-feedback aria-live="polite" data-visible="false">
+                            <div class="wallet-status-copy">
+                                <div class="wallet-status-title" data-wallet-feedback-text></div>
                             </div>
                         </div>
                         <div class="topup-summary">
@@ -385,6 +395,6 @@
         </section>
     </main>
 
-    <script src="/app.js?v=20260625-2" type="module"></script>
+    <script src="/app.js?v=20260627-1" type="module"></script>
 </body>
 </html>

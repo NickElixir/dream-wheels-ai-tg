@@ -487,6 +487,17 @@ function resolveDevTelegramUserId() {
     return localStorage.getItem(DEV_TELEGRAM_USER_ID_STORAGE_KEY) || "";
 }
 
+function resolveInitialView() {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("payment")) {
+        return null;
+    }
+    if (params.get("section") === "support") {
+        return "support";
+    }
+    return "create";
+}
+
 function loadWebsiteAuth() {
     try {
         const parsed = JSON.parse(sessionStorage.getItem(WEBSITE_AUTH_STORAGE_KEY) || "null");
@@ -1989,7 +2000,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     refreshButtonsForCurrentView();
     await loadCabinet();
 
-    if (!new URLSearchParams(window.location.search).get("payment")) {
-        setView("create");
+    const initialView = resolveInitialView();
+    if (initialView) {
+        setView(initialView);
     }
 });

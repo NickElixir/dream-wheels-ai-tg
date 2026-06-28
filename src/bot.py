@@ -13,7 +13,14 @@ from telegram.ext import (
     filters,
 )
 
-from src.config import API_BASE_URL, API_INTERNAL_TOKEN, BOT_TOKEN, REDIS_URL, WEBAPP_URL
+from src.config import (
+    API_BASE_URL,
+    API_INTERNAL_TOKEN,
+    BOT_TOKEN,
+    LEGAL_BASE_URL,
+    REDIS_URL,
+    WEBAPP_URL,
+)
 
 logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -59,10 +66,21 @@ FEEDBACK_KEYBOARD = {
 MESSAGES = {
     "en": {
         "open_app": "🚗 Open Dream Wheels",
+        "open_support": "💬 Open support",
+        "open_document": "📄 Open document",
         "start": (
             "Hi! Tap the button below to open the Mini App, "
             "or send a car photo directly in this chat."
         ),
+        "app": "Open the Mini App below.",
+        "help": (
+            "Send two photos in chat: first the car from the side, "
+            "then the wheel from the front. "
+            "You can also open the Mini App below."
+        ),
+        "support": "Open support in the Mini App.",
+        "privacy": "Open the privacy policy.",
+        "terms": "Open the public offer.",
         "car_received": "Car photo received! 🚗\nNow send a wheel photo.",
         "creating_job": "Creating job... ⏳",
         "api_error": "❌ API server error.",
@@ -74,9 +92,20 @@ MESSAGES = {
     },
     "ru": {
         "open_app": "🚗 Открыть Dream Wheels",
+        "open_support": "💬 Открыть поддержку",
+        "open_document": "📄 Открыть документ",
         "start": (
             "Привет! Жми кнопку ниже, чтобы открыть Mini App, или отправь фото машины прямо в чат."
         ),
+        "app": "Открываю Mini App.",
+        "help": (
+            "Отправь 2 фото в чат: сначала машину сбоку, "
+            "затем диск анфас. "
+            "Или открой Mini App кнопкой ниже."
+        ),
+        "support": "Открываю поддержку в Mini App.",
+        "privacy": "Открываю политику конфиденциальности.",
+        "terms": "Открываю публичную оферту.",
         "car_received": "Фото авто получено! 🚗\nТеперь отправь фото диска.",
         "creating_job": "Создаю задачу... ⏳",
         "api_error": "❌ Ошибка сервера API.",
@@ -99,13 +128,84 @@ def _t(update: Update, key: str) -> str:
     return MESSAGES[_locale(update)][key]
 
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+def _webapp_url(section: str | None = None) -> str:
+    base_url = WEBAPP_URL.rstrip("/")
+    return f"{base_url}/?section={section}" if section else base_url
+
+
+def _legal_url(path: str) -> str:
+    return f"{LEGAL_BASE_URL.rstrip('/')}/{path.lstrip('/')}"
+
+
+async def _reply_with_webapp_button(update: Update, text: str, url: str, button_text: str) -> None:
+    message = update.effective_message
+    if message is None:
+        return
     keyboard = InlineKeyboardMarkup(
-        [[InlineKeyboardButton(_t(update, "open_app"), web_app=WebAppInfo(url=WEBAPP_URL))]]
+        [[InlineKeyboardButton(button_text, web_app=WebAppInfo(url=url))]]
     )
-    await update.message.reply_text(
+    await message.reply_text(text, reply_markup=keyboard)
+
+
+async def _reply_with_url_button(update: Update, text: str, url: str, button_text: str) -> None:
+    message = update.effective_message
+    if message is None:
+        return
+    keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(button_text, url=url)]])
+    await message.reply_text(text, reply_markup=keyboard)
+
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await _reply_with_webapp_button(
+        update,
         _t(update, "start"),
-        reply_markup=keyboard,
+        _webapp_url(),
+        _t(update, "open_app"),
+    )
+
+
+async def app_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await _reply_with_webapp_button(
+        update,
+        _t(update, "app"),
+        _webapp_url(),
+        _t(update, "open_app"),
+    )
+
+
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await _reply_with_webapp_button(
+        update,
+        _t(update, "help"),
+        _webapp_url(),
+        _t(update, "open_app"),
+    )
+
+
+async def support_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await _reply_with_webapp_button(
+        update,
+        _t(update, "support"),
+        _webapp_url("support"),
+        _t(update, "open_support"),
+    )
+
+
+async def privacy_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await _reply_with_url_button(
+        update,
+        _t(update, "privacy"),
+        _legal_url("/legal/privacy"),
+        _t(update, "open_document"),
+    )
+
+
+async def terms_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await _reply_with_url_button(
+        update,
+        _t(update, "terms"),
+        _legal_url("/legal/offer"),
+        _t(update, "open_document"),
     )
 
 
@@ -171,7 +271,8 @@ async def poll_job_status(update: Update, status_msg, job_id: str):
                                 [
                                     [
                                         InlineKeyboardButton(
-                                            fb["like"], callback_data=f"feedback:like:{job_id}"
+                                            fb["like"],
+                                            callback_data=f"feedback:like:{job_id}",
                                         ),
                                         InlineKeyboardButton(
                                             fb["dislike"],
@@ -257,6 +358,11 @@ def main():
     logger.info("Запуск Telegram-бота...")
     application = Application.builder().token(BOT_TOKEN).build()
     application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("app", app_command))
+    application.add_handler(CommandHandler("help", help_command))
+    application.add_handler(CommandHandler("support", support_command))
+    application.add_handler(CommandHandler("privacy", privacy_command))
+    application.add_handler(CommandHandler("terms", terms_command))
     application.add_handler(MessageHandler(filters.PHOTO, handle_photo))
     application.add_handler(CallbackQueryHandler(handle_feedback, pattern=r"^feedback:"))
     application.run_polling()

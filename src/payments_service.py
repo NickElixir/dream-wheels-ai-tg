@@ -213,7 +213,10 @@ async def list_payments_for_user(conn: asyncpg.Connection, *, user_id: int) -> l
         """,
         user_id,
     )
-    return [serialize_payment_row(row, confirmation_url=_confirmation_url_for_payment(row)) for row in rows]
+    return [
+        serialize_payment_row(row, confirmation_url=_confirmation_url_for_payment(row))
+        for row in rows
+    ]
 
 
 def _confirmation_url_for_payment(row: asyncpg.Record) -> str | None:
@@ -318,7 +321,9 @@ async def get_starter_grant_for_user(
     }
 
 
-def serialize_payment_row(row: asyncpg.Record, *, confirmation_url: str | None = None) -> dict[str, Any]:
+def serialize_payment_row(
+    row: asyncpg.Record, *, confirmation_url: str | None = None
+) -> dict[str, Any]:
     updated_at = row["paid_at"] or row["failed_at"] or row["updated_at"] or row["created_at"]
     return {
         "payment_id": str(row["id"]),

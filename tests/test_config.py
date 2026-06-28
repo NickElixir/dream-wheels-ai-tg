@@ -21,3 +21,19 @@ def test_supabase_project_ref_has_no_hardcoded_fallback(monkeypatch):
 
     assert config.SUPABASE_PROJECT_REF == ""
     assert config.SUPABASE_STORAGE_URL == ""
+
+
+def test_legal_base_url_has_public_default(monkeypatch):
+    monkeypatch.delenv("LEGAL_BASE_URL", raising=False)
+
+    config = importlib.reload(config_module)
+
+    assert config.LEGAL_BASE_URL == "https://dream-wheels-ai-legal.vercel.app"
+
+
+def test_legal_base_url_uses_env_override(monkeypatch):
+    monkeypatch.setenv("LEGAL_BASE_URL", "https://example.com/legal/")
+
+    config = importlib.reload(config_module)
+
+    assert config.LEGAL_BASE_URL == "https://example.com/legal"

@@ -150,8 +150,11 @@ def test_get_starter_grant_legacy_fallback_does_not_match_any_manual_adjustment(
             self.calls += 1
             if self.calls == 1:
                 raise asyncpg.UndefinedColumnError("event_type missing")
-            assert "metadata->>'kind' = 'starter_grant'" in query
-            assert "operation_type = 'manual_adjustment'" not in query
+            if self.calls == 2:
+                assert "metadata->>'kind' = 'starter_grant'" in query
+                assert "operation_type = 'manual_adjustment'" not in query
+                return None
+            assert "FROM user_credit_accounts" in query
             return None
 
     payload = asyncio.run(get_starter_grant_for_user(FakeConn(), user_id=123))

@@ -763,6 +763,23 @@ function getIdentitySearchParams() {
     return params;
 }
 
+function withIdentityQuery(url) {
+    const params = getIdentitySearchParams();
+    const query = params.toString();
+    return query ? `${url}?${query}` : url;
+}
+
+async function fetchRenderHistory({ limit = 20, offset = 0 } = {}) {
+    const params = getIdentitySearchParams();
+    params.set("limit", String(limit));
+    params.set("offset", String(offset));
+    const response = await fetch(`${state.apiBaseUrl}/jobs?${params.toString()}`, {
+        headers: withAuthHeaders(),
+    });
+    if (!response.ok) throw new Error(await parseApiError(response));
+    return response.json();
+}
+
 async function parseApiError(response) {
     let detail = response.statusText || t("failed");
     try {
@@ -1727,7 +1744,10 @@ async function submitJob() {
         let statusData;
         try {
             pushDebug("poll:request", state.jobId);
-            const response = await fetch(`${state.apiBaseUrl}/jobs/${state.jobId}/status`);
+            const response = await fetch(
+                withIdentityQuery(`${state.apiBaseUrl}/jobs/${state.jobId}/status`),
+                { headers: withAuthHeaders() }
+            );
             statusData = await response.json();
             pushDebug("poll:response", JSON.stringify(statusData));
         } catch {
@@ -1756,6 +1776,7 @@ async function submitJob() {
                 createdAt: new Date().toLocaleString(locale === "ru" ? "ru-RU" : "en-US"),
                 status: "completed",
                 resultUrl: state.resultUrl,
+                assets: statusData.assets || null,
                 error: "",
             });
             refreshButtonsForCurrentView();

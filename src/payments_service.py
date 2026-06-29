@@ -4,6 +4,7 @@ import json
 import logging
 import uuid
 from dataclasses import dataclass
+from datetime import timedelta
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
@@ -18,6 +19,7 @@ from src.config import (
     ROBOKASSA_PAYMENT_URL,
     ROBOKASSA_TEST_PASSWORD1,
     ROBOKASSA_TEST_PASSWORD2,
+    STARTER_GRANT_TTL_DAYS,
 )
 from src.credits_service import ensure_credit_account
 from src.payments.providers.robokassa import (
@@ -261,6 +263,7 @@ async def get_starter_grant_for_user(
     return {
         "credits": int(row["credits_delta"]),
         "created_at": row["created_at"].isoformat(),
+        "expires_at": (row["created_at"] + timedelta(days=STARTER_GRANT_TTL_DAYS)).isoformat(),
     }
 
 

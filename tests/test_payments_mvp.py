@@ -87,7 +87,11 @@ def test_get_starter_grant_for_user_returns_trial_grant_payload():
 
     payload = asyncio.run(get_starter_grant_for_user(FakeConn(), user_id=123))
 
-    assert payload == {"credits": 3, "created_at": "2026-06-19T09:00:00"}
+    assert payload == {
+        "credits": 3,
+        "created_at": "2026-06-19T09:00:00",
+        "expires_at": "2026-07-19T09:00:00",
+    }
 
 
 def test_get_starter_grant_for_user_falls_back_to_legacy_delta_columns():
@@ -107,7 +111,11 @@ def test_get_starter_grant_for_user_falls_back_to_legacy_delta_columns():
 
     payload = asyncio.run(get_starter_grant_for_user(FakeConn(), user_id=123))
 
-    assert payload == {"credits": 3, "created_at": "2026-06-19T09:00:00"}
+    assert payload == {
+        "credits": 3,
+        "created_at": "2026-06-19T09:00:00",
+        "expires_at": "2026-07-19T09:00:00",
+    }
 
 
 def test_get_starter_grant_legacy_fallback_does_not_match_any_manual_adjustment():

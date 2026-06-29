@@ -10,14 +10,20 @@ REVE_REMIX_URL = "https://api.reve.com/v1/image/remix"
 REQUEST_TIMEOUT_SEC = 90
 
 
-async def fetch_image_base64(url: str) -> str:
-    """Скачать картинку и вернуть её в base64 без записи на диск."""
+async def fetch_image_bytes(url: str) -> tuple[bytes, str]:
+    """Скачать картинку и вернуть bytes + content type без записи на диск."""
     async with aiohttp.ClientSession() as session:
         async with session.get(url) as resp:
             if resp.status != 200:
                 raise RuntimeError(f"Ошибка скачивания файла: HTTP {resp.status}")
             img_bytes = await resp.read()
-            return base64.b64encode(img_bytes).decode("utf-8")
+            return img_bytes, resp.headers.get("content-type", "image/jpeg")
+
+
+async def fetch_image_base64(url: str) -> str:
+    """Скачать картинку и вернуть её в base64 без записи на диск."""
+    img_bytes, _ = await fetch_image_bytes(url)
+    return base64.b64encode(img_bytes).decode("utf-8")
 
 
 async def remix_wheels_on_car(car_b64: str, wheel_b64: str) -> bytes:

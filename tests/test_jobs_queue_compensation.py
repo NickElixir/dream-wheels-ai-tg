@@ -59,8 +59,13 @@ def test_compensate_queue_publish_failure_refunds_credit_and_marks_job_failed():
     assert ("refund", 77, "11111111-1111-1111-1111-111111111111") in calls
     assert any(
         item[0] == "execute"
-        and "UPDATE jobs SET status = 'failed', error_message = $1 WHERE id = $2::uuid" in item[1]
-        and item[2] == ("Queue publish failed", "11111111-1111-1111-1111-111111111111")
+        and "UPDATE jobs SET status = 'failed', error_code = $1, error_message = $2" in item[1]
+        and item[2]
+        == (
+            "QUEUE_PUBLISH_FAILED",
+            "Queue publish failed",
+            "11111111-1111-1111-1111-111111111111",
+        )
         for item in calls
     )
 

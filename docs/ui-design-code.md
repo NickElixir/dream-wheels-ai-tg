@@ -26,6 +26,20 @@ Do not allow native browser button text colours to leak into the UI. Interactive
 
 ## Responsive navigation
 
+### Desktop layout rail
+
+Desktop screens must reserve a real layout column for the permanent sidebar.
+Do not rely on a visually fixed sidebar floating over the page content.
+
+Rules:
+
+- sidebar has a fixed width and its own viewport inset;
+- main content starts only after `sidebar width + sidebar inset + content gutter`;
+- use a centered content rail with a bounded max width instead of stretching task screens across the full viewport;
+- keep at least 40 px visual gutter between sidebar and the nearest panel at desktop widths;
+- topbar, hero panels and content panels align to the same content rail;
+- panels and status islands use visible vertical gaps, so warnings, upload zones, cards and forms never touch each other.
+
 ### Desktop
 
 Permanent left sidebar:

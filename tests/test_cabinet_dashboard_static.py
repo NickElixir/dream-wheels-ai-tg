@@ -66,6 +66,20 @@ def test_unauthenticated_state_prompts_telegram_login() -> None:
     assert "wallet.authRequired" in APP_JS
 
 
+def test_desktop_layout_reserves_sidebar_gutter() -> None:
+    assert "--desktop-sidebar-width" in STYLE_CSS
+    assert "--desktop-content-gap" in STYLE_CSS
+    assert "margin-left: calc(" in STYLE_CSS
+    assert "var(--desktop-sidebar-width)" in STYLE_CSS
+    assert "var(--desktop-content-gap)" in STYLE_CSS
+
+
+def test_photo_guide_caption_uses_i18n_key_without_hyphen() -> None:
+    assert 'state.view === "photo-guide" ? "photoGuide" : state.view' in APP_JS
+    assert "caption.photo-guide" not in INDEX_HTML
+    assert "caption.photo-guide" not in APP_JS
+
+
 def test_existing_create_and_payment_flows_remain_wired() -> None:
     assert "/jobs/upload" in APP_JS
     assert "/payments/topups" in APP_JS

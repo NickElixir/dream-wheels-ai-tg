@@ -842,7 +842,8 @@ async function parseApiError(response) {
 
 function updateTopbarCaption() {
     const caption = document.querySelector("[data-topbar-caption]");
-    if (caption) caption.textContent = t(`caption.${state.view}`);
+    const captionKey = state.view === "photo-guide" ? "photoGuide" : state.view;
+    if (caption) caption.textContent = t(`caption.${captionKey}`);
 }
 
 function setMenuOpen(open) {

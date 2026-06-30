@@ -20,6 +20,10 @@
     --info: #4da3ff;
     --safe-top: env(safe-area-inset-top, 0px);
     --safe-bottom: env(safe-area-inset-bottom, 0px);
+    --desktop-sidebar-left: 30px;
+    --desktop-sidebar-width: 280px;
+    --desktop-content-gap: 56px;
+    --desktop-content-max: 980px;
     --radius-xl: 28px;
     --radius-lg: 22px;
     --radius-md: 18px;
@@ -57,8 +61,8 @@ body {
 
 .desktop-sidebar {
     position: fixed;
-    inset: 18px auto 18px 18px;
-    width: 280px;
+    inset: 30px auto 30px var(--desktop-sidebar-left);
+    width: var(--desktop-sidebar-width);
     display: flex;
     flex-direction: column;
     gap: 24px;
@@ -93,8 +97,20 @@ a {
 
 @media (min-width: 1040px) {
     #app {
-        margin-left: 320px;
-        margin-right: 32px;
+        width: min(
+            var(--desktop-content-max),
+            calc(
+                100vw - var(--desktop-sidebar-left) - var(--desktop-sidebar-width) -
+                    var(--desktop-content-gap) - 40px
+            )
+        );
+        margin-left: calc(
+            var(--desktop-sidebar-left) + var(--desktop-sidebar-width) +
+                var(--desktop-content-gap)
+        );
+        margin-right: auto;
+        padding-left: 0;
+        padding-right: 0;
     }
 }
 
@@ -336,7 +352,7 @@ a {
 
 .view {
     display: grid;
-    gap: 18px;
+    gap: 22px;
 }
 
 .hero-panel,
@@ -350,14 +366,14 @@ a {
 
 .hero-panel,
 .panel {
-    padding: 20px;
+    padding: 24px;
 }
 
 .hero-panel {
     display: flex;
     align-items: stretch;
     justify-content: space-between;
-    gap: 18px;
+    gap: 22px;
 }
 
 .hero-panel.compact {
@@ -388,7 +404,7 @@ a {
 .latest-render-card,
 .quick-access-panel {
     display: grid;
-    gap: 16px;
+    gap: 18px;
 }
 
 .latest-result-image,
@@ -1284,8 +1300,17 @@ h2 {
 .docs-list,
 .form-stack {
     display: grid;
-    gap: 12px;
+    gap: 16px;
     padding: 0 20px 20px;
+}
+
+.list {
+    padding-top: 20px;
+}
+
+[data-create-screen="upload"] {
+    display: grid;
+    gap: 18px;
 }
 
 .history-card {
@@ -1293,7 +1318,7 @@ h2 {
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
-    gap: 12px;
+    gap: 16px;
 }
 
 .render-card {

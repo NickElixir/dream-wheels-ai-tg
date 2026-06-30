@@ -6,7 +6,7 @@
 
 ## Scope and boundaries
 
-This document defines the approved user-facing design and interaction rules for the Cabinet Dashboard, upload entry, balance/wallet and render history. It is a UI reference, not a replacement for backend contracts.
+This document defines the approved user-facing design and interaction rules for the Cabinet Dashboard, upload entry, balance/wallet, render history and visual-feedback UI. It is a UI reference, not a replacement for backend contracts.
 
 Fitment UI is intentionally out of scope until **Parallel F2 — Fitment UI integration** in the Dual-Track Product Roadmap. Do not add fitment verdicts to the Sprint 1 dashboard, render cards or history.
 
@@ -172,7 +172,56 @@ Use the title **Мои виртуальные примерки**. Do not expose 
 - action changes to `Скрыть ▲`;
 - show **Скачать изображение** and **Создать ещё вариант** beneath the image.
 
-Original/result comparison belongs to Sprint 3 and is intentionally not part of the Sprint 1 reference.
+## Visual feedback UI
+
+Feedback is a compact secondary control for a completed visual render. Place it:
+
+- below **Открыть результат** on the Dashboard latest-result card;
+- below **Скачать изображение** / **Создать ещё вариант** in an expanded completed history card.
+
+Do not put feedback controls over the image. Do not show them for processing or failed jobs.
+
+### Initial state
+
+```text
+Как результат?
+
+[ 👍 Понравилось ] [ 👎 Не похоже ]
+```
+
+Both controls are neutral outline buttons.
+
+### Positive selection
+
+`👍 Понравилось` becomes a success-coloured selected control and shows:
+
+```text
+✓ Спасибо, это помогает улучшать примерки.
+```
+
+The negative control remains available so the user can change the selection.
+
+### Negative selection
+
+`👎 Не похоже` becomes warning-coloured and reveals an inline island. There is no modal and no submit button.
+
+```text
+Что именно не так?
+
+[ Диск отличается ] [ Машина изменилась ]
+[ Ракурс / масштаб ] [ Качество изображения ]
+[ Другое ]
+```
+
+A selected reason uses warning styling. On narrow mobile widths, reasons stack in one column. After choosing a reason, show a local acknowledgement in the prototype only.
+
+### Sprint 1 implementation rule
+
+Sprint 1 implements the UI and in-memory/mock interaction state only. It must not create a feedback database table, backend endpoint, analytics event, localStorage persistence or training dataset side effect.
+
+Real feedback persistence, consent boundaries, data model, aggregation and evaluation use are scheduled for **Sprint 3 — comparison, history and feedback**. Every persisted feedback record must be tied to a durable render/job id, not a filename or storage URL.
+
+Original/result comparison also belongs to Sprint 3 and is intentionally not part of the Sprint 1 reference.
 
 ## First-use and visual artwork
 

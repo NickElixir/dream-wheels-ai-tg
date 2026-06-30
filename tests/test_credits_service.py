@@ -6,6 +6,8 @@ from src.credits_service import (
     _calculate_remaining_starter_grant_credits,
     _has_starter_grant_ledger_entry,
     _insert_starter_grant_ledger_entry,
+    ensure_credit_account,
+    ensure_credit_account_state,
 )
 
 
@@ -103,3 +105,69 @@ def test_remaining_starter_grant_restores_refunded_credit():
     )
 
     assert remaining == 3
+
+
+def test_ensure_credit_account_state_marks_new_grant():
+    class FakeConn:
+        def __init__(self) -> None:
+            self.fetchrow_calls = 0
+            self.execute_calls: list[tuple[str, tuple[object, ...]]] = []
+
+        async def execute(self, query: str, *args):
+            self.execute_calls.append((query, args))
+            return "INSERT 0 1"
+
+        async def fetchrow(self, query: str, *args):
+            self.fetchrow_calls += 1
+            if "SELECT balance, trial_used_at" in query:
+                return {"balance": 0, "trial_used_at": None}
+            if "FROM credit_ledger" in query:
+                return None
+            raise AssertionError(query)
+
+        async def fetchval(self, query: str, *args):
+            assert "starter_grant" in query
+            return None
+
+        def transaction(self):
+            return _FakeTransaction()
+
+    state = asyncio.run(ensure_credit_account_state(FakeConn(), 123))
+
+    assert state.balance == 3
+    assert state.starter_credits_granted_now is True
+
+
+def test_ensure_credit_account_state_marks_existing_grant_without_regrant():
+    class FakeConn:
+        async def execute(self, query: str, *args):
+            return "INSERT 0 0"
+
+        async def fetchrow(self, query: str, *args):
+            if "SELECT balance, trial_used_at" in query:
+                return {"balance": 3, "trial_used_at": "2026-06-30T00:00:00Z"}
+            if "FROM credit_ledger" in query:
+                return None
+            raise AssertionError(query)
+
+        async def fetchval(self, query: str, *args):
+            return None
+
+        def transaction(self):
+            return _FakeTransaction()
+
+    state = asyncio.run(ensure_credit_account_state(FakeConn(), 123))
+
+    assert state.balance == 3
+    assert state.starter_credits_granted_now is False
+
+
+def test_ensure_credit_account_keeps_int_contract(monkeypatch):
+    async def fake_state(_conn, _user_id: int):
+        return type("State", (), {"balance": 5, "starter_credits_granted_now": False})()
+
+    monkeypatch.setattr("src.credits_service.ensure_credit_account_state", fake_state)
+
+    balance = asyncio.run(ensure_credit_account(object(), 123))
+
+    assert balance == 5

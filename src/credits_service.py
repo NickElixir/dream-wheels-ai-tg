@@ -2,6 +2,7 @@
 
 import logging
 from collections.abc import Mapping
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -14,6 +15,12 @@ logger = logging.getLogger(__name__)
 
 class InsufficientCreditsError(Exception):
     """Недостаточно credits для запуска рендера."""
+
+
+@dataclass(slots=True)
+class CreditAccountState:
+    balance: int
+    starter_credits_granted_now: bool
 
 
 def _starter_grant_idempotency_key(user_id: int) -> str:
@@ -446,8 +453,11 @@ async def _expire_starter_grant_if_due(
     return balance_after
 
 
-async def ensure_credit_account(conn: asyncpg.Connection, user_id: int) -> int:
-    """Создать аккаунт credits и один раз выдать стартовый grant."""
+async def ensure_credit_account_state(
+    conn: asyncpg.Connection,
+    user_id: int,
+) -> CreditAccountState:
+    """Создать аккаунт credits и вернуть актуальное состояние стартового grant."""
     await conn.execute(
         """
         INSERT INTO user_credit_accounts (user_id)
@@ -487,7 +497,7 @@ async def ensure_credit_account(conn: asyncpg.Connection, user_id: int) -> int:
     balance = await _expire_starter_grant_if_due(conn, user_id=user_id, balance=balance)
     if trial_used_at is None and STARTER_GRANT_CREDITS > 0:
         if await _has_starter_grant_ledger_entry(conn, user_id):
-            return balance
+            return CreditAccountState(balance=balance, starter_credits_granted_now=False)
         balance_after = balance + STARTER_GRANT_CREDITS
         if has_trial_used_at_column:
             try:
@@ -541,8 +551,14 @@ async def ensure_credit_account(conn: asyncpg.Connection, user_id: int) -> int:
             balance_after=balance_after,
         )
         logger.info(f"✅ Выдан стартовый grant user_id={user_id}: +{STARTER_GRANT_CREDITS} credits")
-        return balance_after
-    return balance
+        return CreditAccountState(balance=balance_after, starter_credits_granted_now=True)
+    return CreditAccountState(balance=balance, starter_credits_granted_now=False)
+
+
+async def ensure_credit_account(conn: asyncpg.Connection, user_id: int) -> int:
+    """Создать аккаунт credits и один раз выдать стартовый grant."""
+    state = await ensure_credit_account_state(conn, user_id)
+    return state.balance
 
 
 async def get_balance(conn: asyncpg.Connection, user_id: int) -> int:

@@ -121,6 +121,8 @@ def test_ensure_credit_account_state_marks_new_grant():
             self.fetchrow_calls += 1
             if "SELECT balance, trial_used_at" in query:
                 return {"balance": 0, "trial_used_at": None}
+            if "FROM credit_ledger" in query:
+                return None
             raise AssertionError(query)
 
         async def fetchval(self, query: str, *args):
@@ -144,7 +146,12 @@ def test_ensure_credit_account_state_marks_existing_grant_without_regrant():
         async def fetchrow(self, query: str, *args):
             if "SELECT balance, trial_used_at" in query:
                 return {"balance": 3, "trial_used_at": "2026-06-30T00:00:00Z"}
+            if "FROM credit_ledger" in query:
+                return None
             raise AssertionError(query)
+
+        async def fetchval(self, query: str, *args):
+            return None
 
         def transaction(self):
             return _FakeTransaction()

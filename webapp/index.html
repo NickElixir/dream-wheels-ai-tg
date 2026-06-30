@@ -9,52 +9,110 @@
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
+    <aside class="desktop-sidebar" aria-label="Навигация кабинета">
+        <button type="button" class="brand-wordmark brand-button" data-nav="dashboard" aria-label="Dream Wheels AI — главная">
+            <span class="brand-light">DREAM</span><span class="brand-dim">WHEELS AI</span>
+        </button>
+        <nav class="sidebar-nav">
+            <div class="sidebar-section">
+                <div class="sidebar-label">Основное</div>
+                <button type="button" class="sidebar-item active" data-nav="dashboard">Главная</button>
+                <button type="button" class="sidebar-item" data-nav="create">Примерить диски</button>
+                <button type="button" class="sidebar-item" data-nav="renders">Мои примерки</button>
+                <button type="button" class="sidebar-item" data-nav="wallet">Баланс</button>
+            </div>
+            <div class="sidebar-section">
+                <div class="sidebar-label">Помощь</div>
+                <button type="button" class="sidebar-item" data-nav="support">Поддержка</button>
+                <button type="button" class="sidebar-item" data-nav="photo-guide">Как подготовить фото</button>
+                <button type="button" class="sidebar-item" data-nav="docs">Документы</button>
+            </div>
+        </nav>
+        <div class="sidebar-account" data-account-block>
+            <div class="account-avatar" data-account-avatar>DW</div>
+            <div>
+                <div class="account-name" data-account-name>Dream Wheels</div>
+                <div class="account-subtitle" data-account-subtitle>Кабинет</div>
+            </div>
+        </div>
+    </aside>
+
     <main id="app">
         <header class="topbar">
-            <div class="brand-wordmark">
+            <button type="button" class="brand-wordmark brand-button mobile-brand" data-nav="dashboard" aria-label="Dream Wheels AI — главная">
                 <span class="brand-light">DREAM</span><span class="brand-dim">WHEELS AI</span>
-            </div>
+            </button>
             <div class="topbar-actions">
                 <button type="button" class="website-auth-button" data-website-auth-button data-i18n="auth.login" hidden>Войти через Telegram</button>
                 <div class="topbar-caption" data-topbar-caption>Кабинет</div>
-                <button type="button" class="menu-button" data-menu-toggle aria-expanded="false" aria-label="Открыть меню">
-                    <span aria-hidden="true">☰</span>
-                </button>
             </div>
         </header>
 
-        <nav class="menu-layer" data-menu-layer hidden aria-label="Навигация кабинета">
-            <button type="button" class="menu-item active" data-nav="create">
-                <span class="menu-icon" aria-hidden="true">✨</span>
-                <span class="menu-text" data-i18n="menu.create">Создать рендер</span>
-            </button>
-            <button type="button" class="menu-item" data-nav="wallet">
-                <span class="menu-icon" aria-hidden="true">👛</span>
-                <span class="menu-text" data-i18n="menu.wallet">Кошелек</span>
-            </button>
-            <button type="button" class="menu-item" data-nav="renders">
-                <span class="menu-icon" aria-hidden="true">🖼️</span>
-                <span class="menu-text" data-i18n="menu.renders">История рендеров</span>
-            </button>
-            <button type="button" class="menu-item" data-nav="settings">
-                <span class="menu-icon" aria-hidden="true">⚙️</span>
-                <span class="menu-text" data-i18n="menu.settings">Настройки</span>
-            </button>
-            <button type="button" class="menu-item" data-nav="support">
-                <span class="menu-icon" aria-hidden="true">💬</span>
-                <span class="menu-text" data-i18n="menu.support">Поддержка</span>
-            </button>
-            <button type="button" class="menu-item" data-nav="docs">
-                <span class="menu-icon" aria-hidden="true">📄</span>
-                <span class="menu-text" data-i18n="menu.docs">Документы</span>
-            </button>
-        </nav>
+        <section class="view" data-view="dashboard">
+            <section class="hero-panel dashboard-hero">
+                <div class="hero-copy">
+                    <p class="eyebrow">Мой Dream Wheels AI</p>
+                    <h1>Создавайте виртуальные примерки и возвращайтесь к готовым результатам.</h1>
+                    <div class="dashboard-actions">
+                        <button type="button" class="primary-button" data-nav="create">Создать виртуальную примерку</button>
+                        <button type="button" class="ghost-button" data-nav="renders">Мои примерки</button>
+                    </div>
+                </div>
+            </section>
+
+            <section class="dashboard-grid">
+                <article class="panel dashboard-balance-card">
+                    <div class="panel-head">
+                        <div>
+                            <p class="section-label">Баланс</p>
+                            <h2><span data-dashboard-balance>—</span> рендеров</h2>
+                        </div>
+                        <button type="button" class="ghost-button compact-button" data-nav="wallet">Пополнить баланс</button>
+                    </div>
+                    <div class="wallet-status-island tone-loading" data-dashboard-loading data-visible="false" aria-live="polite">
+                        <div class="wallet-status-spinner" aria-hidden="true"></div>
+                        <div class="wallet-status-copy">
+                            <div class="wallet-status-title">Загружаем кабинет...</div>
+                        </div>
+                    </div>
+                    <div class="wallet-status-island tone-warning" data-dashboard-auth data-visible="false">
+                        <div class="wallet-status-copy">
+                            <div class="wallet-status-title">Откройте Mini App в Telegram или войдите через Telegram на сайте.</div>
+                        </div>
+                    </div>
+                    <div class="wallet-status-island tone-error" data-dashboard-error data-visible="false">
+                        <div class="wallet-status-copy">
+                            <div class="wallet-status-title" data-dashboard-error-text>Баланс временно недоступен</div>
+                        </div>
+                    </div>
+                </article>
+
+                <article class="panel latest-render-card" data-latest-render-card>
+                    <div class="panel-head">
+                        <div>
+                            <p class="section-label">Последний результат</p>
+                            <h2 data-latest-title>Ваша первая примерка</h2>
+                        </div>
+                        <span class="status-pill neutral" data-latest-status>Нет истории</span>
+                    </div>
+                    <div data-latest-content></div>
+                </article>
+            </section>
+
+            <section class="panel quick-access-panel">
+                <p class="section-label">Быстрый доступ</p>
+                <div class="quick-links">
+                    <button type="button" class="quick-link" data-nav="renders">Мои примерки</button>
+                    <button type="button" class="quick-link" data-nav="support">Нужна помощь?</button>
+                </div>
+            </section>
+        </section>
 
         <section class="view" data-view="create">
             <section class="hero-panel compact">
                 <div class="hero-copy">
-                    <p class="eyebrow" data-i18n="create.eyebrow">Главный экран</p>
-                    <h1 data-i18n="create.title">Загрузи фото машины и диска</h1>
+                    <p class="eyebrow" data-i18n="create.eyebrow">Создание</p>
+                    <h1 data-i18n="create.title">Загрузите фото машины и диска</h1>
                     <p class="lede" data-i18n="create.lede">
                         Машина целиком сбоку, диск анфас. JPG или PNG, до 10 MB.
                     </p>
@@ -62,6 +120,11 @@
             </section>
 
             <section class="panel" data-create-screen="upload">
+                <div class="wallet-status-island tone-warning upload-guidance" data-visible="true">
+                    <div class="wallet-status-copy">
+                        <div class="wallet-status-title">Проверьте, что колёса автомобиля полностью видны в кадре</div>
+                    </div>
+                </div>
                 <label class="dropzone" data-upload-zone="car">
                     <input type="file" accept="image/*" data-input="car" hidden>
                     <div class="dropzone-icon">📷</div>
@@ -127,7 +190,7 @@
                 <section class="balance-tile">
                     <div class="balance-badge">💎</div>
                     <div class="balance-value"><span data-balance-value>3</span></div>
-                    <div class="balance-unit">credits</div>
+                    <div class="balance-unit">рендеров</div>
                     <div class="balance-note" data-balance-note hidden></div>
                 </section>
             </section>
@@ -169,7 +232,7 @@
                         </div>
                         <div class="invoice-field">
                             <span data-i18n="wallet.invoiceCredits">Начисление</span>
-                            <strong data-last-invoice-credits>0 credits</strong>
+                            <strong data-last-invoice-credits>0 рендеров</strong>
                         </div>
                         <div class="invoice-field">
                             <span data-i18n="wallet.invoiceAmount">Сумма</span>
@@ -216,28 +279,28 @@
                                     <span class="topup-icon" aria-hidden="true">⚡</span>
                                     <span class="package-main">
                                         <span class="package-name">100 ₽</span>
-                                        <span class="package-meta" data-topup-meta>3 credits · 30 дней</span>
+                                        <span class="package-meta" data-topup-meta>3 рендеров</span>
                                     </span>
                                 </button>
                                 <button type="button" class="topup-card" data-topup-amount="200" data-topup-credits="7" data-selected="false">
                                     <span class="topup-icon" aria-hidden="true">🏁</span>
                                     <span class="package-main">
                                         <span class="package-name">200 ₽</span>
-                                        <span class="package-meta" data-topup-meta>7 credits · 30 дней</span>
+                                        <span class="package-meta" data-topup-meta>7 рендеров</span>
                                     </span>
                                 </button>
                                 <button type="button" class="topup-card" data-topup-amount="500" data-topup-credits="20" data-selected="false">
                                     <span class="topup-icon" aria-hidden="true">💎</span>
                                     <span class="package-main">
                                         <span class="package-name">500 ₽</span>
-                                        <span class="package-meta" data-topup-meta>20 credits · 30 дней</span>
+                                        <span class="package-meta" data-topup-meta>20 рендеров · 30 дней</span>
                                     </span>
                                 </button>
                                 <button type="button" class="topup-card" data-topup-amount="1000" data-topup-credits="45" data-selected="false">
                                     <span class="topup-icon" aria-hidden="true">👑</span>
                                     <span class="package-main">
                                         <span class="package-name">1 000 ₽</span>
-                                        <span class="package-meta" data-topup-meta>45 credits · 30 дней</span>
+                                        <span class="package-meta" data-topup-meta>45 рендеров</span>
                                     </span>
                                 </button>
                             </div>
@@ -248,7 +311,7 @@
                                 <div class="custom-topup-row">
                                     <input id="custom-topup-amount" type="number" inputmode="numeric" min="100" max="3000" step="50" value="200" data-custom-topup disabled>
                                 </div>
-                                <p class="custom-topup-preview" data-custom-topup-preview>7 credits за 200 ₽ · 30 дней</p>
+                                <p class="custom-topup-preview" data-custom-topup-preview>7 рендеров за 200 ₽</p>
                             </div>
                         </div>
                     </div>
@@ -284,7 +347,7 @@
                             <div class="topup-summary-meta" data-topup-summary-meta data-i18n="wallet.summaryEmptyMeta">Здесь появится выбранный пакет перед оплатой.</div>
                         </div>
                         <button type="button" class="primary-button wallet-pay-button" data-pay-button data-i18n="wallet.pay">Оплатить</button>
-                        <p class="panel-note" data-i18n="wallet.paymentNote">Оплата откроется через Robokassa. Credits начисляются после подтверждения.</p>
+                        <p class="panel-note" data-i18n="wallet.paymentNote">Оплата откроется через Robokassa. Рендеры начисляются после подтверждения.</p>
                     </div>
                 </div>
             </section>
@@ -305,7 +368,7 @@
             <section class="hero-panel compact">
                 <div class="hero-copy">
                     <p class="eyebrow" data-i18n="renders.eyebrow">Готовые работы</p>
-                    <h1 data-i18n="renders.title">История рендеров</h1>
+                    <h1 data-i18n="renders.title">Мои виртуальные примерки</h1>
                     <p class="lede" data-i18n="renders.lede">
                         Быстрый список последних генераций и их состояния.
                     </p>
@@ -353,6 +416,22 @@
             </section>
         </section>
 
+        <section class="view" data-view="photo-guide" hidden>
+            <section class="hero-panel compact">
+                <div class="hero-copy">
+                    <p class="eyebrow">Помощь</p>
+                    <h1>Как подготовить фото</h1>
+                    <p class="lede">Машина целиком сбоку, диск анфас. Колёса автомобиля должны быть полностью видны в кадре.</p>
+                </div>
+            </section>
+            <section class="panel">
+                <div class="form-stack">
+                    <div class="form-row"><strong>Фото машины</strong><p>Снимите автомобиль сбоку без сильного поворота и обрезки колёс.</p></div>
+                    <div class="form-row"><strong>Фото диска</strong><p>Используйте фото диска анфас, без перспективного наклона и сильных бликов.</p></div>
+                </div>
+            </section>
+        </section>
+
         <section class="view" data-view="support" hidden>
             <section class="hero-panel compact">
                 <div class="hero-copy">
@@ -394,6 +473,22 @@
             </section>
         </section>
     </main>
+
+    <nav class="mobile-bottom-nav" aria-label="Основная навигация">
+        <button type="button" class="bottom-nav-item active" data-nav="dashboard">Главная</button>
+        <button type="button" class="bottom-nav-item" data-nav="create">Создать</button>
+        <button type="button" class="bottom-nav-item" data-nav="renders">История</button>
+        <button type="button" class="bottom-nav-item" data-nav="wallet">Баланс</button>
+        <button type="button" class="bottom-nav-item" data-more-toggle aria-expanded="false">Ещё</button>
+    </nav>
+
+    <div class="more-sheet-backdrop" data-more-backdrop hidden></div>
+    <section class="more-sheet" data-more-sheet hidden aria-label="Ещё">
+        <button type="button" class="sheet-handle" data-more-close aria-label="Закрыть"></button>
+        <button type="button" class="sheet-item" data-nav="support">Поддержка</button>
+        <button type="button" class="sheet-item" data-nav="photo-guide">Как подготовить фото</button>
+        <button type="button" class="sheet-item" data-nav="docs">Документы</button>
+    </section>
 
     <script src="/app.js?v=20260627-1" type="module"></script>
 </body>

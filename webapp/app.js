@@ -17,7 +17,6 @@ const LOCAL_API_BASE_URL = "http://127.0.0.1:10000";
 const API_MODE_STORAGE_KEY = "dreamWheelsApiMode";
 const DEV_TELEGRAM_USER_ID_STORAGE_KEY = "dreamWheelsDevTelegramUserId";
 const WEBSITE_AUTH_STORAGE_KEY = "dreamWheelsWebsiteAuth";
-const RECENT_RENDERS_STORAGE_KEY = "dreamWheelsRecentRenders";
 const TELEGRAM_LOGIN_SCRIPT_URL = "https://oauth.telegram.org/js/telegram-login.js?5";
 const PRICING_VERSION = "credits-v1";
 const TOPUP_MIN_AMOUNT = 100;
@@ -45,24 +44,28 @@ const I18N = {
             failed: "Не удалось войти через Telegram",
         },
         menu: {
-            create: "Создать рендер",
-            wallet: "Кошелек",
-            renders: "История рендеров",
+            dashboard: "Главная",
+            create: "Примерить диски",
+            wallet: "Баланс",
+            renders: "Мои примерки",
             settings: "Настройки",
             support: "Поддержка",
+            photoGuide: "Как подготовить фото",
             docs: "Документы",
         },
         caption: {
-            create: "Рендер",
-            wallet: "Кабинет",
-            renders: "Рендеры",
+            dashboard: "Главная",
+            create: "Создание",
+            wallet: "Баланс",
+            renders: "История",
             settings: "Настройки",
             support: "Поддержка",
+            photoGuide: "Фото",
             docs: "Документы",
         },
         create: {
-            eyebrow: "Главный экран",
-            title: "Загрузи фото машины и диска",
+            eyebrow: "Создание",
+            title: "Загрузите фото машины и диска",
             lede: "Машина целиком сбоку, диск анфас. JPG или PNG, до 10 MB.",
             carPhoto: "Фото машины",
             wheelPhoto: "Фото диска",
@@ -154,7 +157,7 @@ const I18N = {
             confirmCredits: "Начисление",
             confirmHint: "Проверьте пакет перед переходом в Robokassa",
             pay: "Оплатить",
-            paymentNote: "Оплата откроется через Robokassa. Credits начисляются после подтверждения",
+            paymentNote: "Оплата откроется через Robokassa. Рендеры начисляются после подтверждения",
             paymentHistory: "История платежей",
             paymentHistoryHint: "Скрыта по умолчанию",
             openHistory: "Открыть",
@@ -172,7 +175,7 @@ const I18N = {
             authRequired: "Откройте Mini App в Telegram или войдите через Telegram на сайте",
             fallbackDisabled: "Web fallback выключен на backend",
             starterGrantTitle: "Первый подарок",
-            starterGrantMeta: "{credits} credits · начислено по /start · действует 30 дней",
+            starterGrantMeta: "{credits} рендеров · начислено по /start",
             starterGrantBadge: "Подарок",
             summaryEmptyTitle: "Выберите пакет",
             summaryEmptyMeta: "Здесь появится выбранный пакет перед оплатой",
@@ -181,16 +184,22 @@ const I18N = {
             pendingInvoice: "Счет #{invoiceId} · {amount}",
             paidInvoice: "Счет #{invoiceId} · {amount}",
             failedInvoice: "Счет #{invoiceId} · {amount}",
-            packageMetaDays: "{credits} credits · 30 дней",
-            packageSummary: "{amount} · {credits} credits · 30 дней",
+            packageMetaDays: "{credits} рендеров",
+            packageSummary: "{amount} · {credits} рендеров",
         },
         renders: {
             eyebrow: "Готовые работы",
-            title: "История рендеров",
-            lede: "Здесь видны последние сохраненные рендеры на этом устройстве.",
-            empty: "Готовых рендеров пока нет. Создайте первый на главном экране.",
-            completed: "Готов",
-            failed: "Ошибка",
+            title: "Мои виртуальные примерки",
+            lede: "Результаты и текущие статусы из вашей истории.",
+            empty: "Готовых примерок пока нет. Создайте первую на главном экране.",
+            completed: "Готово",
+            processing: "В обработке",
+            failed: "Не удалось",
+            open: "Открыть",
+            hide: "Скрыть ▲",
+            retry: "Повторить",
+            createAnother: "Создать ещё вариант",
+            download: "Скачать изображение",
         },
         settings: {
             eyebrow: "Параметры кабинета",
@@ -230,7 +239,7 @@ const I18N = {
         paid: "Оплачено",
         created: "Создан",
         locale: "RU",
-        credits: "credits",
+        credits: "рендеров",
     },
     en: {
         auth: {
@@ -240,19 +249,23 @@ const I18N = {
             failed: "Telegram login failed",
         },
         menu: {
+            dashboard: "Home",
             create: "Create render",
             wallet: "Wallet",
             renders: "Render history",
             settings: "Settings",
             support: "Support",
+            photoGuide: "Photo guide",
             docs: "Documents",
         },
         caption: {
+            dashboard: "Home",
             create: "Render",
             wallet: "Cabinet",
             renders: "Renders",
             settings: "Settings",
             support: "Support",
+            photoGuide: "Guide",
             docs: "Documents",
         },
         create: {
@@ -325,7 +338,7 @@ const I18N = {
             invoiceAmount: "Amount",
             invoiceNumber: "Invoice",
             invoiceEmail: "Email",
-            invoiceCredits: "Credits",
+            invoiceCredits: "Renders",
             invoiceState: "Status",
             wizardLabel: "Top up",
             wizardTitle: "Three payment steps",
@@ -349,7 +362,7 @@ const I18N = {
             confirmCredits: "Credits",
             confirmHint: "Review the package before opening Robokassa",
             pay: "Pay",
-            paymentNote: "Robokassa opens on tap. Credits are applied after confirmation",
+            paymentNote: "Robokassa opens on tap. Renders are applied after confirmation",
             paymentHistory: "Payment history",
             paymentHistoryHint: "Collapsed by default",
             openHistory: "Open",
@@ -367,7 +380,7 @@ const I18N = {
             authRequired: "Open the Mini App in Telegram or log in with Telegram on the website",
             fallbackDisabled: "Web fallback is disabled on the backend",
             starterGrantTitle: "Starter gift",
-            starterGrantMeta: "{credits} credits · added on /start · valid for 30 days",
+            starterGrantMeta: "{credits} renders · added on /start",
             starterGrantBadge: "Gift",
             summaryEmptyTitle: "Choose a package",
             summaryEmptyMeta: "The selected package will appear here before payment",
@@ -376,8 +389,8 @@ const I18N = {
             pendingInvoice: "Invoice #{invoiceId} · {amount}",
             paidInvoice: "Invoice #{invoiceId} · {amount}",
             failedInvoice: "Invoice #{invoiceId} · {amount}",
-            packageMetaDays: "{credits} credits · 30 days",
-            packageSummary: "{amount} · {credits} credits · 30 days",
+            packageMetaDays: "{credits} renders",
+            packageSummary: "{amount} · {credits} renders",
         },
         renders: {
             eyebrow: "Finished work",
@@ -425,7 +438,7 @@ const I18N = {
         paid: "Paid",
         created: "Created",
         locale: "EN",
-        credits: "credits",
+        credits: "renders",
     },
 };
 
@@ -493,22 +506,13 @@ function loadWebsiteAuth() {
     }
 }
 
-function loadRecentRenders() {
-    try {
-        const raw = localStorage.getItem(RECENT_RENDERS_STORAGE_KEY);
-        const parsed = JSON.parse(raw || "[]");
-        return Array.isArray(parsed) ? parsed : [];
-    } catch {
-        return [];
-    }
-}
-
 const state = {
     apiBaseUrl: resolveApiBaseUrl(),
     devTelegramUserId: resolveDevTelegramUserId(),
     websiteAuth: loadWebsiteAuth(),
-    view: "create",
+    view: "dashboard",
     menuOpen: false,
+    moreOpen: false,
     paymentStep: 1,
     selectedAmount: 500,
     topUpMode: "package",
@@ -533,7 +537,10 @@ const state = {
     downloading: false,
     sharing: false,
     submitting: false,
-    recentRenders: loadRecentRenders(),
+    renderHistory: [],
+    renderHistoryLoading: false,
+    renderHistoryError: "",
+    expandedJobId: "",
 };
 
 function applyTranslations() {
@@ -552,12 +559,14 @@ function initTelegram() {
 
     if (!HAS_TG) {
         updateCreateFooter();
+        updateAccountBlock();
         return;
     }
 
     tg.ready();
     tg.expand();
     updateCreateFooter();
+    updateAccountBlock();
 }
 
 function updateCreateFooter() {
@@ -573,6 +582,33 @@ function updateCreateFooter() {
     }
     const name = [user.first_name, user.last_name].filter(Boolean).join(" ") || `id ${user.id}`;
     userInfo.textContent = `Telegram · ${name}`;
+}
+
+function getDisplayName() {
+    const user = tg?.initDataUnsafe?.user;
+    if (user) {
+        return [user.first_name, user.last_name].filter(Boolean).join(" ") || user.username || `id ${user.id}`;
+    }
+    if (state.websiteAuth?.username) return `@${state.websiteAuth.username}`;
+    return "Dream Wheels";
+}
+
+function getInitials(name) {
+    const normalized = (name || "Dream Wheels").replace("@", "").trim();
+    const parts = normalized.split(/\s+/).filter(Boolean);
+    if (!parts.length) return "DW";
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+}
+
+function updateAccountBlock() {
+    const displayName = getDisplayName();
+    const name = document.querySelector("[data-account-name]");
+    const avatar = document.querySelector("[data-account-avatar]");
+    const subtitle = document.querySelector("[data-account-subtitle]");
+    if (name) name.textContent = displayName;
+    if (avatar) avatar.textContent = getInitials(displayName);
+    if (subtitle) subtitle.textContent = HAS_TG ? "Telegram Mini App" : "Website login";
 }
 
 function getWebsiteAuthToken() {
@@ -602,6 +638,7 @@ function updateWebsiteAuthUi() {
         ? `${t("auth.logout")}${username ? ` @${username}` : ""}`
         : t("auth.login");
     updateCreateFooter();
+    updateAccountBlock();
 }
 
 function loadTelegramLoginLibrary() {
@@ -803,16 +840,6 @@ async function parseApiError(response) {
     return String(detail || t("failed"));
 }
 
-function persistRecentRenders() {
-    localStorage.setItem(RECENT_RENDERS_STORAGE_KEY, JSON.stringify(state.recentRenders.slice(0, 12)));
-}
-
-function addRecentRender(item) {
-    state.recentRenders = [item, ...state.recentRenders.filter((entry) => entry.jobId !== item.jobId)].slice(0, 12);
-    persistRecentRenders();
-    renderRenders();
-}
-
 function updateTopbarCaption() {
     const caption = document.querySelector("[data-topbar-caption]");
     if (caption) caption.textContent = t(`caption.${state.view}`);
@@ -823,6 +850,16 @@ function setMenuOpen(open) {
     const layer = document.querySelector("[data-menu-layer]");
     const toggle = document.querySelector("[data-menu-toggle]");
     if (layer) layer.hidden = !open;
+    if (toggle) toggle.setAttribute("aria-expanded", open ? "true" : "false");
+}
+
+function setMoreOpen(open) {
+    state.moreOpen = open;
+    const sheet = document.querySelector("[data-more-sheet]");
+    const backdrop = document.querySelector("[data-more-backdrop]");
+    const toggle = document.querySelector("[data-more-toggle]");
+    if (sheet) sheet.hidden = !open;
+    if (backdrop) backdrop.hidden = !open;
     if (toggle) toggle.setAttribute("aria-expanded", open ? "true" : "false");
 }
 
@@ -838,9 +875,14 @@ function setView(view) {
     });
     updateTopbarCaption();
     setMenuOpen(false);
+    setMoreOpen(false);
     refreshButtonsForCurrentView();
-    if (view === "wallet") {
+    if (view === "dashboard") {
+        void loadDashboardData({ silent: true });
+    } else if (view === "wallet") {
         void loadCabinet({ silent: true });
+    } else if (view === "renders") {
+        void loadRenderHistory({ silent: true });
     }
 }
 
@@ -1095,35 +1137,230 @@ function syncEmailInput() {
     }
 }
 
+function escapeHtml(value) {
+    const div = document.createElement("div");
+    div.textContent = String(value ?? "");
+    return div.innerHTML;
+}
+
+function hasFrontendAuth() {
+    return Boolean(getIdentitySearchParams().toString() || getWebsiteAuthToken());
+}
+
+function formatDateTime(value) {
+    if (!value) return "";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "";
+    const today = new Date();
+    const sameDay = date.toDateString() === today.toDateString();
+    const time = date.toLocaleTimeString(locale === "ru" ? "ru-RU" : "en-US", {
+        hour: "2-digit",
+        minute: "2-digit",
+    });
+    if (sameDay && locale === "ru") return `Сегодня, ${time}`;
+    return date.toLocaleString(locale === "ru" ? "ru-RU" : "en-US", {
+        day: "2-digit",
+        month: "short",
+        hour: "2-digit",
+        minute: "2-digit",
+    });
+}
+
+function humanRenderTitle(job) {
+    const vehicle = job?.vehicle || job?.vehicle_identity || job?.metadata?.vehicle;
+    const makeModel = [vehicle?.make, vehicle?.model].filter(Boolean).join(" ");
+    return makeModel || (locale === "ru" ? "Виртуальная примерка" : "Virtual render");
+}
+
+function resultUrlForJob(job) {
+    return job?.assets?.result?.url || job?.result_url || "";
+}
+
+function downloadUrlForJob(job) {
+    if (getWebsiteAuthToken()) return resultUrlForJob(job);
+    const assetPath = job?.assets?.result?.download_url;
+    if (assetPath?.startsWith("/")) {
+        return withIdentityQuery(`${state.apiBaseUrl}${assetPath}`);
+    }
+    if (assetPath) return withIdentityQuery(assetPath);
+    return resultUrlForJob(job);
+}
+
+function statusLabel(status) {
+    if (status === "completed") return t("renders.completed");
+    if (status === "failed") return t("renders.failed");
+    return t("renders.processing");
+}
+
+function statusClass(status) {
+    if (status === "completed") return "success";
+    if (status === "failed") return "warning";
+    return "neutral";
+}
+
+function renderHistoryCard(job) {
+    const title = humanRenderTitle(job);
+    const status = job.status || "processing";
+    const resultUrl = resultUrlForJob(job);
+    const createdAt = formatDateTime(job.completed_at || job.created_at);
+    const expanded = state.expandedJobId === job.job_id;
+    const canOpen = status === "completed" && resultUrl;
+    const summaryText = status === "failed"
+        ? "Не удалось создать результат"
+        : status === "completed"
+          ? createdAt
+          : "Создаём результат";
+    const action = status === "failed"
+        ? `<button type="button" class="ghost-button compact-button" data-nav="create">${t("renders.retry")}</button>`
+        : canOpen
+          ? `<button type="button" class="ghost-button compact-button" data-toggle-render="${escapeHtml(job.job_id)}">${expanded ? t("renders.hide") : t("renders.open")}</button>`
+          : "";
+    return `
+        <article class="render-card cabinet-render-card ${expanded ? "is-open" : ""}">
+            <div class="render-summary">
+                <div class="render-thumb-wrap">
+                    ${resultUrl ? `<img src="${escapeHtml(resultUrl)}" alt="" class="render-thumb-image">` : `<div class="render-thumb"></div>`}
+                </div>
+                <div class="render-body">
+                    <div class="render-title">${escapeHtml(title)} · виртуальная примерка</div>
+                    <div class="render-subtitle">${escapeHtml(summaryText)}</div>
+                    <div class="status-pill ${statusClass(status)}">${statusLabel(status)}</div>
+                </div>
+                <div class="render-card-action">${action}</div>
+            </div>
+            <div class="render-disclosure" data-visible="${expanded && canOpen ? "true" : "false"}">
+                ${canOpen ? `
+                    <img src="${escapeHtml(resultUrl)}" alt="${escapeHtml(title)}" class="render-full-image">
+                    <div class="render-expanded-actions">
+                        <a class="ghost-button compact-button" href="${escapeHtml(downloadUrlForJob(job))}" download> ${t("renders.download")} </a>
+                        <button type="button" class="ghost-button compact-button" data-nav="create">${t("renders.createAnother")}</button>
+                    </div>
+                ` : ""}
+            </div>
+        </article>
+    `;
+}
+
 function renderRenders() {
     const container = document.querySelector("[data-render-history]");
     if (!container) return;
-    if (!state.recentRenders.length) {
+    if (state.renderHistoryLoading) {
+        container.innerHTML = `<div class="history-card render-empty"><strong>Загружаем историю...</strong></div>`;
+        return;
+    }
+    if (state.renderHistoryError) {
+        container.innerHTML = `<div class="history-card render-empty"><strong>${escapeHtml(localizeErrorMessage(state.renderHistoryError))}</strong></div>`;
+        return;
+    }
+    if (!hasFrontendAuth()) {
+        container.innerHTML = `<div class="history-card render-empty"><strong>${t("wallet.authRequired")}</strong></div>`;
+        return;
+    }
+    if (!state.renderHistory.length) {
         container.innerHTML = `
             <div class="history-card render-empty">
                 <div>
                     <strong>${t("renders.empty")}</strong>
-                    <div class="meta">${state.apiBaseUrl}</div>
+                    <div class="meta">Создайте первую виртуальную примерку.</div>
                 </div>
             </div>
         `;
         return;
     }
-    container.innerHTML = state.recentRenders
-        .map((render) => `
-            <article class="render-card">
-                <div class="render-thumb-wrap">
-                    ${render.resultUrl ? `<img src="${render.resultUrl}" alt="" class="render-thumb-image">` : `<div class="render-thumb"></div>`}
-                </div>
-                <div class="render-body">
-                    <div class="render-title">${render.fileName || `job ${render.jobId}`}</div>
-                    <div class="render-subtitle">${render.createdAt}</div>
-                    <div class="meta">${render.status === "completed" ? t("renders.completed") : t("renders.failed")}${render.error ? ` · ${render.error}` : ""}</div>
-                </div>
-                ${render.resultUrl ? `<button type="button" class="ghost-button compact-button" data-open-render="${render.resultUrl}">${t("actions.openRender")}</button>` : ""}
-            </article>
-        `)
-        .join("");
+    container.innerHTML = state.renderHistory.map(renderHistoryCard).join("");
+}
+
+function renderDashboard() {
+    const balance = document.querySelector("[data-dashboard-balance]");
+    const latestTitle = document.querySelector("[data-latest-title]");
+    const latestStatus = document.querySelector("[data-latest-status]");
+    const latestContent = document.querySelector("[data-latest-content]");
+    const loading = document.querySelector("[data-dashboard-loading]");
+    const auth = document.querySelector("[data-dashboard-auth]");
+    const error = document.querySelector("[data-dashboard-error]");
+    const errorText = document.querySelector("[data-dashboard-error-text]");
+
+    if (balance) balance.textContent = state.balance === null ? "—" : String(state.balance);
+    if (loading) loading.dataset.visible = String(state.walletLoading || state.renderHistoryLoading);
+    if (auth) auth.dataset.visible = String(!hasFrontendAuth());
+    if (error) error.dataset.visible = String(Boolean(state.walletMessageTone === "error" || state.renderHistoryError));
+    if (errorText) errorText.textContent = localizeErrorMessage(state.renderHistoryError || state.walletMessage || "Данные временно недоступны");
+
+    if (!latestTitle || !latestStatus || !latestContent) return;
+    const latest = state.renderHistory[0] || null;
+    if (!latest) {
+        latestTitle.textContent = "Ваша первая примерка";
+        latestStatus.textContent = "Нет истории";
+        latestStatus.className = "status-pill neutral";
+        latestContent.innerHTML = `
+            <div class="first-render-empty">
+                <p>Посмотрите, как новые диски изменят автомобиль.</p>
+                <p>Загрузите фото автомобиля и диска — готовый результат появится здесь.</p>
+                <button type="button" class="ghost-button compact-button" data-nav="create">Создать первую примерку →</button>
+            </div>
+        `;
+        return;
+    }
+
+    const title = humanRenderTitle(latest);
+    latestTitle.textContent = latest.status === "completed" ? title : (
+        latest.status === "failed" ? "Не удалось создать результат" : "Создаём виртуальную примерку"
+    );
+    latestStatus.textContent = statusLabel(latest.status);
+    latestStatus.className = `status-pill ${statusClass(latest.status)}`;
+
+    const resultUrl = resultUrlForJob(latest);
+    if (latest.status === "completed" && resultUrl) {
+        latestContent.innerHTML = `
+            <img src="${escapeHtml(resultUrl)}" alt="${escapeHtml(title)}" class="latest-result-image">
+            <div class="latest-meta">${escapeHtml(formatDateTime(latest.completed_at || latest.created_at))}</div>
+            <button type="button" class="ghost-button compact-button" data-nav="renders" data-expand-latest="${escapeHtml(latest.job_id)}">Открыть результат</button>
+        `;
+        return;
+    }
+    if (latest.status === "failed") {
+        latestContent.innerHTML = `
+            <p class="latest-meta">Попробуйте создать виртуальную примерку ещё раз.</p>
+            <button type="button" class="ghost-button compact-button" data-nav="create">Попробовать ещё раз</button>
+        `;
+        return;
+    }
+    latestContent.innerHTML = `<p class="latest-meta">Готовый результат появится здесь автоматически.</p>`;
+}
+
+async function loadRenderHistory({ silent = false } = {}) {
+    if (!hasFrontendAuth()) {
+        state.renderHistory = [];
+        state.renderHistoryError = "";
+        renderRenders();
+        renderDashboard();
+        return;
+    }
+    state.renderHistoryLoading = !silent;
+    state.renderHistoryError = "";
+    renderRenders();
+    renderDashboard();
+    try {
+        const history = await fetchRenderHistory({ limit: 20, offset: 0 });
+        state.renderHistory = Array.isArray(history.jobs) ? history.jobs : [];
+        if (!state.renderHistory.some((job) => job.job_id === state.expandedJobId)) {
+            state.expandedJobId = "";
+        }
+    } catch (error) {
+        state.renderHistoryError = error?.message || t("errors.requestFailed");
+    } finally {
+        state.renderHistoryLoading = false;
+        renderRenders();
+        renderDashboard();
+    }
+}
+
+async function loadDashboardData({ silent = false } = {}) {
+    await Promise.allSettled([
+        loadCabinet({ silent: true }),
+        loadRenderHistory({ silent }),
+    ]);
+    renderDashboard();
 }
 
 async function loadCabinet({ silent = false } = {}) {
@@ -1131,6 +1368,7 @@ async function loadCabinet({ silent = false } = {}) {
     if (!identity.toString() && !getWebsiteAuthToken()) {
         setWalletMessage(t("wallet.authRequired"), "warning");
         renderWallet();
+        renderDashboard();
         return;
     }
 
@@ -1153,6 +1391,7 @@ async function loadCabinet({ silent = false } = {}) {
                 setWalletMessage(detail, "error");
             }
             renderWallet();
+            renderDashboard();
             return;
         }
         const cabinet = await response.json();
@@ -1194,12 +1433,15 @@ async function loadCabinet({ silent = false } = {}) {
         state.paymentReturnState = "";
         renderWallet();
         schedulePendingInvoiceRefresh();
+        renderDashboard();
     } catch (error) {
         setWalletMessage(error?.message || t("failed"), "error");
         renderWallet();
+        renderDashboard();
     } finally {
         setWalletBusy(false);
         setWalletLoading(false);
+        renderDashboard();
     }
 }
 
@@ -1668,17 +1910,10 @@ async function submitJob() {
         if (resultBlock) resultBlock.hidden = true;
         if (errorBlock) errorBlock.hidden = false;
         if (errorText) errorText.textContent = localizeErrorMessage(message);
-        addRecentRender({
-            jobId: state.jobId || makeIdempotencyKey(),
-            fileName: state.files.car?.name || "render",
-            createdAt: new Date().toLocaleString(locale === "ru" ? "ru-RU" : "en-US"),
-            status: "failed",
-            error: localizeErrorMessage(message),
-            resultUrl: "",
-        });
         refreshButtonsForCurrentView();
         pushDebug("showError", message);
         haptic("error");
+        if (state.jobId) void loadRenderHistory({ silent: true });
     }
 
     if (statusBlock) statusBlock.hidden = false;
@@ -1796,16 +2031,8 @@ async function submitJob() {
             document.querySelector("[data-share-result]")?.toggleAttribute("hidden", !state.resultUrl);
             setDownloadButtonState();
             setShareButtonState();
-            addRecentRender({
-                jobId: state.jobId,
-                fileName: state.files.car?.name || `render ${state.jobId}`,
-                createdAt: new Date().toLocaleString(locale === "ru" ? "ru-RU" : "en-US"),
-                status: "completed",
-                resultUrl: state.resultUrl,
-                assets: statusData.assets || null,
-                error: "",
-            });
             refreshButtonsForCurrentView();
+            void loadRenderHistory({ silent: true });
             pushDebug("poll:completed");
             haptic("success");
             return;
@@ -1840,6 +2067,11 @@ function bindEvents() {
     document.querySelector("[data-menu-toggle]")?.addEventListener("click", () => {
         setMenuOpen(!state.menuOpen);
     });
+    document.querySelector("[data-more-toggle]")?.addEventListener("click", () => {
+        setMoreOpen(!state.moreOpen);
+    });
+    document.querySelector("[data-more-close]")?.addEventListener("click", () => setMoreOpen(false));
+    document.querySelector("[data-more-backdrop]")?.addEventListener("click", () => setMoreOpen(false));
 
     document.querySelector("[data-website-auth-button]")?.addEventListener("click", () => {
         if (state.websiteAuth) logoutWebsiteAuth();
@@ -1847,7 +2079,10 @@ function bindEvents() {
     });
 
     document.querySelectorAll("[data-nav]").forEach((button) => {
-        button.addEventListener("click", () => setView(button.dataset.nav));
+        button.addEventListener("click", (event) => {
+            event.stopPropagation();
+            setView(button.dataset.nav);
+        });
     });
 
     document.querySelectorAll("[data-topup-amount]").forEach((button) => {
@@ -1903,9 +2138,20 @@ function bindEvents() {
     document.querySelector("[data-share-result]")?.addEventListener("click", shareResult);
 
     document.addEventListener("click", (event) => {
-        const openRenderButton = event.target.closest("[data-open-render]");
-        if (openRenderButton) {
-            openExternal(openRenderButton.dataset.openRender);
+        const navButton = event.target.closest("[data-nav]");
+        if (navButton) {
+            const expandLatestJobId = navButton.dataset.expandLatest;
+            if (expandLatestJobId) state.expandedJobId = expandLatestJobId;
+            setView(navButton.dataset.nav);
+            return;
+        }
+
+        const toggleRenderButton = event.target.closest("[data-toggle-render]");
+        if (toggleRenderButton) {
+            const jobId = toggleRenderButton.dataset.toggleRender;
+            state.expandedJobId = state.expandedJobId === jobId ? "" : jobId;
+            renderRenders();
+            renderDashboard();
             return;
         }
 
@@ -1929,8 +2175,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     setSelectedAmount(state.selectedAmount);
     renderWallet();
     renderRenders();
+    renderDashboard();
     updateTopbarCaption();
     setMenuOpen(false);
+    setMoreOpen(false);
     showCreateScreen("upload");
 
     document.addEventListener("visibilitychange", () => {
@@ -1941,9 +2189,9 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     await hydrateFilesFromDraft();
     refreshButtonsForCurrentView();
-    await loadCabinet();
+    await loadDashboardData();
 
     if (!new URLSearchParams(window.location.search).get("payment")) {
-        setView("create");
+        setView("dashboard");
     }
 });

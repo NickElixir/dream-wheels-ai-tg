@@ -1,8 +1,12 @@
 # AI Rendering Pipeline
 
+> Part of **Project Dual Track**. This document describes the Rendering Pipeline only; it does not determine technical compatibility. See `docs/fitment-compatibility.md` for the independent Fitment Pipeline and `docs/product-roadmap.md` for the shared delivery plan.
+
 ## Scope
 
 This document describes the target production path for virtual wheel fitting. Evaluation scripts and provider experiments are not the production path; they feed provider selection, prompt/mask strategy and quality thresholds.
+
+The Rendering Pipeline answers one question: **“How will these wheels look on this car?”** It may consume confirmed vehicle or rim data where that improves the visual result, but it must not issue a technical compatibility verdict.
 
 ## Pipeline
 

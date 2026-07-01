@@ -14,7 +14,6 @@ Use this skill for changes spanning `webapp/` and its FastAPI boundary.
 - `docs/architecture.md`
 - `webapp/app.js`
 - `webapp/index.html`
-- `webapp/t/index.html`
 - `webapp/style.css`
 - `webapp/vercel.json`
 - `src/auth.py`
@@ -35,7 +34,7 @@ Load references only when needed:
 2. Trace the full flow when contracts change: `webapp/app.js` -> FastAPI endpoint -> DB/Redis/Storage -> polling/result UI.
 3. Treat `tg.initData` as the client credential and validate it only on the backend; never trust `initDataUnsafe` for authorization.
 4. Preserve draft recovery around file selection because Telegram mobile WebViews may reload or lose in-memory state.
-5. Keep root and `/t/` entry HTML consistent when shared UI markup changes.
+5. Preserve the `/t/` entry route through `webapp/vercel.json` rewrites so root and `/t/` resolve to the same frontend entrypoint.
 6. Verify desktop fallback and Telegram WebView behavior separately.
 7. If external Telegram behavior matters, check official Telegram Bot API / Mini Apps docs before making claims.
 

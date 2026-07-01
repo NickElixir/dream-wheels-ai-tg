@@ -4,10 +4,10 @@ Telegram Mini App для прототипа кастдева. Статическ
 
 ## Что внутри
 
-- **`index.html`** — три экрана (машина → диск → результат)
+- **`index.html`** — основной entrypoint Mini App
 - **`style.css`** — dark theme, использует `--tg-theme-*` CSS-переменные Telegram
 - **`app.js`** — Telegram WebApp SDK (MainButton, BackButton, HapticFeedback), file upload, заглушка submit
-- **`vercel.json`** — security headers, CSP с разрешением для Telegram-доменов
+- **`vercel.json`** — security headers, CSP и rewrite для маршрута `/t/`
 - **`README.md`** — этот файл
 
 ## Текущее состояние

@@ -28,6 +28,17 @@ For this product UI, standalone paragraph-style copy should not end with a perio
 This applies to ledes, helper text, empty states, support copy, form guidance and similar short interface text
 Exceptions are explicit multi-sentence legal text, technical payloads and copy where punctuation is required for clarity
 
+## Buttons and action chips
+
+Use a small, consistent button family across the cabinet:
+
+- primary CTA uses the acid fill, dark foreground, strong weight, and the largest visual priority;
+- secondary actions use a dark island chip with a thin border, 44-48 px minimum height, rounded corners, and a restrained hover tint;
+- accent secondary chips may keep the same island base while using accent text for actions like open, sign in, or disclose;
+- inline panel actions should not appear as naked text links when they compete with other controls in the same block;
+- compact actions such as `Открыть`, `Сбросить`, `Обновить счет`, `Пополнить баланс`, download/share, and website Telegram login should stay within the same secondary-chip family;
+- buttons should visually align with the panel system, avoid browser-default fills, and preserve comfortable tap targets on mobile.
+
 ## Responsive navigation
 
 ### Desktop layout rail

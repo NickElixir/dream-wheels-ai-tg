@@ -1,10 +1,11 @@
+import json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 APP_JS = (ROOT / "webapp" / "app.js").read_text(encoding="utf-8")
 STYLE_CSS = (ROOT / "webapp" / "style.css").read_text(encoding="utf-8")
 INDEX_HTML = (ROOT / "webapp" / "index.html").read_text(encoding="utf-8")
-T_INDEX_HTML = (ROOT / "webapp" / "t" / "index.html").read_text(encoding="utf-8")
+VERCEL_JSON = json.loads((ROOT / "webapp" / "vercel.json").read_text(encoding="utf-8"))
 
 
 def test_dashboard_uses_balance_from_cabinet_api() -> None:
@@ -88,7 +89,20 @@ def test_existing_create_and_payment_flows_remain_wired() -> None:
     assert "Robokassa" in INDEX_HTML
 
 
-def test_root_and_t_entrypoints_stay_aligned_and_expiry_hidden() -> None:
-    assert INDEX_HTML == T_INDEX_HTML
+def test_t_route_rewrites_to_shared_entrypoint_and_expiry_hidden() -> None:
+    rewrites = VERCEL_JSON.get("rewrites", [])
+    assert {"source": "/t", "destination": "/index.html"} in rewrites
+    assert {"source": "/t/", "destination": "/index.html"} in rewrites
+    assert not (ROOT / "webapp" / "t" / "index.html").exists()
     assert "Срок действия рендеров" not in INDEX_HTML
     assert "expiry" not in INDEX_HTML.lower()
+
+
+def test_secondary_action_family_uses_shared_island_button_style() -> None:
+    assert ".payment-card-action," in STYLE_CSS
+    assert ".website-auth-button," in STYLE_CSS
+    assert ".summary-action" in STYLE_CSS
+    assert "min-height: 44px" in STYLE_CSS
+    assert "background: rgba(255, 255, 255, 0.03);" in STYLE_CSS
+    assert "background: rgba(255, 255, 255, 0.04);" in STYLE_CSS
+    assert "color: var(--accent-strong);" in STYLE_CSS

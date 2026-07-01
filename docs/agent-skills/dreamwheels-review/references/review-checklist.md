@@ -41,5 +41,5 @@
 - Backend validates `initData`; `initDataUnsafe` is not trusted for authorization.
 - Dev `telegram_user_id` fallback remains disabled in production.
 - Upload MIME, size, rate limit, idempotency, and credit checks remain server-side.
-- Both root and `/t/` entry markup remain consistent.
+- Root and `/t/` resolve to the same frontend entrypoint through config rather than duplicated HTML.
 - Mobile WebView lifecycle, IndexedDB draft recovery, and Telegram-only APIs are considered.

@@ -246,22 +246,6 @@ a {
     font-size: 12px;
 }
 
-.website-auth-button {
-    border: 1px solid rgba(221, 255, 0, 0.28);
-    border-radius: 14px;
-    background: var(--accent-soft);
-    color: var(--accent-strong);
-    padding: 10px 14px;
-    font-size: 13px;
-    font-weight: 800;
-    cursor: pointer;
-}
-
-.website-auth-button:disabled {
-    cursor: wait;
-    opacity: 0.65;
-}
-
 @media (max-width: 560px) {
     .topbar-actions {
         gap: 8px;
@@ -269,7 +253,6 @@ a {
 
     .website-auth-button {
         max-width: 132px;
-        padding: 9px 10px;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
@@ -1029,22 +1012,6 @@ h2 {
     white-space: nowrap;
 }
 
-.payment-card-action {
-    appearance: none;
-    border-radius: 16px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    background: rgba(255, 255, 255, 0.03);
-    color: var(--text);
-    padding: 14px 18px;
-    font-weight: 800;
-    cursor: pointer;
-}
-
-.payment-card-action:hover {
-    border-color: rgba(221, 255, 0, 0.25);
-    background: rgba(221, 255, 0, 0.07);
-}
-
 .topup-general-error {
     color: #ff8f8f;
     font-size: 14px;
@@ -1140,6 +1107,9 @@ h2 {
 .ghost-button,
 .compact-button,
 .link-button,
+.payment-card-action,
+.website-auth-button,
+.summary-action,
 .doc-link,
 .doc-row,
 .support-link {
@@ -1203,13 +1173,18 @@ h2 {
 .primary-button,
 .ghost-button,
 .compact-button,
-.link-button {
+.link-button,
+.payment-card-action,
+.website-auth-button {
     appearance: none;
     border-radius: 18px;
     cursor: pointer;
 }
 
 .primary-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     border: 1px solid rgba(221, 255, 0, 0.25);
     background: var(--accent);
     color: #151811;
@@ -1224,34 +1199,77 @@ h2 {
 .primary-button:disabled,
 .ghost-button:disabled,
 .compact-button:disabled,
-.link-button:disabled {
+.link-button:disabled,
+.payment-card-action:disabled,
+.website-auth-button:disabled {
     opacity: 0.55;
     cursor: not-allowed;
 }
 
 .ghost-button,
 .compact-button,
-.link-button {
+.link-button,
+.payment-card-action,
+.website-auth-button,
+.summary-action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 44px;
+    padding: 0 16px;
     border: 1px solid rgba(255, 255, 255, 0.1);
     background: rgba(255, 255, 255, 0.03);
     color: var(--text);
+    font-weight: 800;
+    line-height: 1;
+    text-align: center;
+    white-space: nowrap;
+    border-radius: 18px;
 }
 
 .ghost-button {
-    padding: 14px 22px;
+    min-height: 48px;
+    padding: 0 22px;
 }
 
 .compact-button {
-    padding: 12px 16px;
+    padding-inline: 16px;
 }
 
 .link-button {
-    padding: 12px 18px;
+    padding-inline: 18px;
+}
+
+.payment-card-action {
+    padding-inline: 18px;
+}
+
+.website-auth-button,
+.summary-action {
+    border-color: rgba(221, 255, 0, 0.18);
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--accent-strong);
+}
+
+.website-auth-button {
+    font-size: 13px;
+}
+
+.summary-action {
+    align-self: center;
+}
+
+.website-auth-button:disabled {
+    cursor: wait;
 }
 
 .ghost-button:hover,
 .compact-button:hover,
-.link-button:hover {
+.link-button:hover,
+.payment-card-action:hover,
+.website-auth-button:hover,
+.summary-action:hover {
     border-color: rgba(221, 255, 0, 0.25);
     background: rgba(221, 255, 0, 0.07);
 }
@@ -1261,6 +1279,9 @@ h2 {
 .amount-chip:active,
 .compact-button:active,
 .link-button:active,
+.payment-card-action:active,
+.website-auth-button:active,
+.summary-action:active,
 .support-link:active,
 .doc-link:active,
 .doc-row:active {

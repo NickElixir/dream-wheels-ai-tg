@@ -9,7 +9,7 @@ Official references:
 
 - `webapp/app.js`: application state, Telegram SDK integration, localization, upload, polling, wallet, feedback, result download/share.
 - `webapp/index.html`: root entry page.
-- `webapp/t/index.html`: `/t/` entry page used by configured WebApp URL paths.
+- `webapp/vercel.json`: `/t/` rewrite route used by configured WebApp URL paths.
 - `webapp/style.css`: shared responsive UI.
 - `webapp/vercel.json`: redirects and security headers.
 - `src/bot.py`: Telegram button that opens `WEBAPP_URL`.
@@ -28,7 +28,7 @@ Official references:
 
 - Test narrow mobile viewport and desktop fallback.
 - Check safe-area insets and Telegram theme variables.
-- Keep `webapp/index.html` and `webapp/t/index.html` markup aligned.
+- Keep `/t/` routed to the same shared entrypoint instead of maintaining a second HTML copy.
 - Update Russian and English strings together.
 - Verify loading, empty, error, retry, insufficient-credit, timeout, and completed states.
 - Ensure dynamic text and filenames do not break controls or layouts.

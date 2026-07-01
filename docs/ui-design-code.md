@@ -44,7 +44,7 @@ Rules:
 - topbar, hero panels and content panels align to the same content rail;
 - panels and status islands use visible vertical gaps, so warnings, upload zones, cards and forms never touch each other.
 - help instruction cards should be centered, with the label and explanation stacked vertically and separated by a visible gap;
-- help instruction cards on desktop should use about half of the available content width, and collapse to full width on mobile;
+- help instruction cards should sit in a two-column row on desktop and collapse to a single column on mobile;
 - do not let the label and the explanatory paragraph run into each other on desktop help screens.
 
 ### Desktop

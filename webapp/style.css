@@ -1461,9 +1461,11 @@ h2 {
 }
 
 .view[data-view="photo-guide"] .form-stack {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px;
     max-width: 100%;
     margin: 0 auto;
-    justify-items: center;
 }
 
 .view[data-view="photo-guide"] .form-row {
@@ -1471,7 +1473,6 @@ h2 {
     gap: 10px;
     justify-items: center;
     text-align: center;
-    width: min(100%, 50%);
     padding: 20px 22px;
 }
 
@@ -1820,8 +1821,8 @@ h2 {
         grid-template-columns: 1fr;
     }
 
-    .view[data-view="photo-guide"] .form-row {
-        width: 100%;
+    .view[data-view="photo-guide"] .form-stack {
+        grid-template-columns: 1fr;
     }
 
     .step-actions,

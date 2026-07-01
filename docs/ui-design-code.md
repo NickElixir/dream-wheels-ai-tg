@@ -118,6 +118,16 @@ The dashboard contains:
 4. primary CTA: **Создать виртуальную примерку**;
 5. quick links: **Мои примерки**, **Нужна помощь?**.
 
+### Dashboard card headers
+
+Dashboard summary cards such as balance and latest result must use a resilient internal header layout:
+
+- use a two-zone header: content block on the left, action chip or status chip on the right;
+- do not rely on a raw single-line flex row when the left side contains a large metric or multi-line title;
+- the content block must allow shrinking with `min-width: 0`, while the action or status chip remains auto-sized;
+- when the card container becomes narrow, the action or status chip should move below the content instead of compressing or overlapping the metric;
+- card-internal responsive behavior should follow the card container width, not only the full viewport width.
+
 ### Balance terminology
 
 Use **рендеры** in the Russian UI. Avoid exposing `credits` as a primary user-facing term.

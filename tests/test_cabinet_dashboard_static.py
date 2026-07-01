@@ -106,3 +106,10 @@ def test_secondary_action_family_uses_shared_island_button_style() -> None:
     assert "background: rgba(255, 255, 255, 0.03);" in STYLE_CSS
     assert "background: rgba(255, 255, 255, 0.04);" in STYLE_CSS
     assert "color: var(--accent-strong);" in STYLE_CSS
+
+
+def test_dashboard_summary_cards_use_container_responsive_headers() -> None:
+    assert "container-type: inline-size;" in STYLE_CSS
+    assert "grid-template-columns: minmax(0, 1fr) auto;" in STYLE_CSS
+    assert "@container (max-width: 640px)" in STYLE_CSS
+    assert "justify-self: start;" in STYLE_CSS

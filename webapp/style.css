@@ -392,8 +392,15 @@ a {
 
 .dashboard-balance-card .panel-head,
 .latest-render-card .panel-head {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
     align-items: flex-start;
     gap: 18px;
+}
+
+.dashboard-balance-card,
+.latest-render-card {
+    container-type: inline-size;
 }
 
 .dashboard-balance-card .panel-head > div,
@@ -414,6 +421,19 @@ a {
 .latest-render-card .status-pill {
     flex: 0 0 auto;
     align-self: flex-start;
+    justify-self: end;
+}
+
+@container (max-width: 640px) {
+    .dashboard-balance-card .panel-head,
+    .latest-render-card .panel-head {
+        grid-template-columns: 1fr;
+    }
+
+    .dashboard-balance-card .compact-button,
+    .latest-render-card .status-pill {
+        justify-self: start;
+    }
 }
 
 .latest-result-image,

@@ -103,7 +103,8 @@ The topbar page label is not a content heading and should not reuse `H1` or `H2`
 Use a dedicated caption style:
 
 - place the current page label at the far right edge of the topbar on desktop;
-- keep the website Telegram login action in the same right-side cluster, immediately before the page label;
+- keep the current page label and website Telegram login action in the same right-side cluster;
+- place the page label to the left and the Telegram login action at the far right edge of that cluster;
 - use a slightly larger but restrained caption treatment with muted color, moderate weight, and no oversized hero emphasis;
 - hide the caption on narrow mobile widths when it starts competing with primary controls.
 

@@ -116,8 +116,9 @@ def test_dashboard_summary_cards_use_container_responsive_headers() -> None:
 
 
 def test_topbar_actions_are_right_aligned_with_dedicated_caption_style() -> None:
-    assert "grid-template-columns: auto minmax(0, 1fr);" in STYLE_CSS
+    assert "justify-content: flex-end;" in STYLE_CSS
     assert "margin-left: auto;" in STYLE_CSS
     assert ".topbar-caption {" in STYLE_CSS
-    assert "justify-self: end;" in STYLE_CSS
     assert "font-size: 18px;" in STYLE_CSS
+    topbar_actions = INDEX_HTML.split('<div class="topbar-actions">', 1)[1].split("</header>", 1)[0]
+    assert topbar_actions.index('class="topbar-caption"') < topbar_actions.index('class="website-auth-button"')

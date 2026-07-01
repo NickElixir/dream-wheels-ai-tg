@@ -1312,6 +1312,18 @@ h2 {
     padding: 20px;
 }
 
+.payment-history-details summary > span {
+    display: grid;
+    gap: 8px;
+}
+
+.payment-history-details .history-summary-title {
+    font-size: clamp(22px, 3vw, 30px);
+    line-height: 1.08;
+    font-weight: 900;
+    letter-spacing: -0.03em;
+}
+
 .collapsible summary::-webkit-details-marker {
     display: none;
 }

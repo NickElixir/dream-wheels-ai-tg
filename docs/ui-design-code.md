@@ -46,6 +46,7 @@ Rules:
 - help instruction cards should be centered, with the label and explanation stacked vertically and separated by a visible gap;
 - help instruction cards should sit in a two-column row on desktop and collapse to a single column on mobile;
 - do not let the label and the explanatory paragraph run into each other on desktop help screens.
+- the payment history disclosure title should be visually prominent like the main section headers, without a secondary "collapsed by default" hint in the header.
 
 ### Desktop
 

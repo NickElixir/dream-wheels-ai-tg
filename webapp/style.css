@@ -390,6 +390,32 @@ a {
     gap: 18px;
 }
 
+.dashboard-balance-card .panel-head,
+.latest-render-card .panel-head {
+    align-items: flex-start;
+    gap: 18px;
+}
+
+.dashboard-balance-card .panel-head > div,
+.latest-render-card .panel-head > div {
+    min-width: 0;
+    display: grid;
+    gap: 10px;
+}
+
+.dashboard-balance-card .panel-head h2,
+.latest-render-card .panel-head h2,
+.dashboard-balance-card .panel-head .section-label,
+.latest-render-card .panel-head .section-label {
+    margin: 0;
+}
+
+.dashboard-balance-card .compact-button,
+.latest-render-card .status-pill {
+    flex: 0 0 auto;
+    align-self: flex-start;
+}
+
 .latest-result-image,
 .render-full-image {
     display: block;

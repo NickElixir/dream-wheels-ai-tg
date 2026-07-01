@@ -115,10 +115,11 @@ def test_dashboard_summary_cards_use_container_responsive_headers() -> None:
     assert "justify-self: start;" in STYLE_CSS
 
 
-def test_topbar_actions_are_right_aligned_with_dedicated_caption_style() -> None:
-    assert "justify-content: flex-end;" in STYLE_CSS
+def test_topbar_actions_split_caption_left_and_login_right() -> None:
+    assert "justify-content: space-between;" in STYLE_CSS
     assert "margin-left: auto;" in STYLE_CSS
     assert ".topbar-caption {" in STYLE_CSS
     assert "font-size: 18px;" in STYLE_CSS
+    assert "text-align: left;" in STYLE_CSS
     topbar_actions = INDEX_HTML.split('<div class="topbar-actions">', 1)[1].split("</header>", 1)[0]
     assert topbar_actions.index('class="topbar-caption"') < topbar_actions.index('class="website-auth-button"')

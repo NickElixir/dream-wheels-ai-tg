@@ -102,9 +102,10 @@ Use restrained motion only:
 The topbar page label is not a content heading and should not reuse `H1` or `H2`.
 Use a dedicated caption style:
 
-- place the current page label at the far right edge of the topbar on desktop;
-- keep the current page label and website Telegram login action in the same right-side cluster;
-- place the page label to the left and the Telegram login action at the far right edge of that cluster;
+- let the caption row stretch across the full desktop content width;
+- place the current page label at the far left edge of that row on desktop;
+- place the website Telegram login action at the far right edge of that row;
+- keep these two elements visually separated rather than grouped into a tight cluster;
 - use a slightly larger but restrained caption treatment with muted color, moderate weight, and no oversized hero emphasis;
 - hide the caption on narrow mobile widths when it starts competing with primary controls.
 
